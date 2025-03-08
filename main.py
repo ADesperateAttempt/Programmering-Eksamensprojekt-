@@ -1,35 +1,35 @@
+import pygame
 import sys
 
-import pygame   # Import the pygame library                 
 # Initialize Pygame
 pygame.init()
 
-# Screen dimensions
+# Constants
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
+PLAYER_WIDTH = 50
+PLAYER_HEIGHT = 50
+PLAYER_SPEED = 5
+JUMP_HEIGHT = 10
+GRAVITY = 1
 
 # Colors
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
+BACKGROUND_COLORS = [(135, 206, 235), (34, 139, 34)]
 
-# Set up the display
+# Screen setup
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-pygame.display.set_caption("Platformer")
+pygame.display.set_caption("Platformer Game")
 
-# Load character image
-character_image = pygame.image.load('path/to/character_image.png')
-character_rect = character_image.get_rect()
-character_rect.topleft = (50, SCREEN_HEIGHT - character_rect.height - 10)
+# Player setup
+player_image = pygame.image.load('mario smol.png')  # Replace with your player image
+player_rect = player_image.get_rect()
+player_rect.topleft = (SCREEN_WIDTH // 2, SCREEN_HEIGHT - PLAYER_HEIGHT)
 
-# Platform
-platform_rect = pygame.Rect(0, SCREEN_HEIGHT - 10, SCREEN_WIDTH, 10)
-
-# Character movement variables
-character_speed = 5
-jump_speed = 15
-gravity = 1
-velocity_y = 0
-is_jumping = False
+# Variables
+x_velocity = 0
+y_velocity = 0
+on_ground = False
+scroll_x = 0
 
 # Main game loop
 running = True
@@ -38,40 +38,49 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
-    # Get keys pressed
+    # Key presses
     keys = pygame.key.get_pressed()
     if keys[pygame.K_LEFT]:
-        character_rect.x -= character_speed
-    if keys[pygame.K_RIGHT]:
-        character_rect.x += character_speed
-    if keys[pygame.K_SPACE] and not is_jumping:
-        is_jumping = True
-        velocity_y = -jump_speed
+        x_velocity = -PLAYER_SPEED
+    elif keys[pygame.K_RIGHT]:
+        x_velocity = PLAYER_SPEED
+    else:
+        x_velocity = 0
+
+    if keys[pygame.K_SPACE] and on_ground:
+        y_velocity = -JUMP_HEIGHT
+        on_ground = False
 
     # Apply gravity
-    if is_jumping:
-        velocity_y += gravity
-        character_rect.y += velocity_y
+    y_velocity += GRAVITY
 
-        # Check for collision with platform
-        if character_rect.colliderect(platform_rect):
-            character_rect.y = platform_rect.top - character_rect.height
-            is_jumping = False
-            velocity_y = 0
+    # Update player position
+    player_rect.x += x_velocity
+    player_rect.y += y_velocity
 
-    # Fill the screen with white
-    screen.fill(WHITE)
+    # Check for ground collision
+    if player_rect.bottom >= SCREEN_HEIGHT:
+        player_rect.bottom = SCREEN_HEIGHT
+        y_velocity = 0
+        on_ground = True
 
-    # Draw the platform
-    pygame.draw.rect(screen, BLACK, platform_rect)
+    # Screen scrolling
+    if player_rect.right > SCREEN_WIDTH:
+        scroll_x += player_rect.right - SCREEN_WIDTH
+        player_rect.right = SCREEN_WIDTH
+    elif player_rect.left < 0:
+        scroll_x += player_rect.left
+        player_rect.left = 0
 
-    # Draw the character
-    screen.blit(character_image, character_rect.topleft)
+    # Background color change
+    background_color = BACKGROUND_COLORS[(scroll_x // SCREEN_WIDTH) % len(BACKGROUND_COLORS)]
 
-    # Update the display
+    # Draw everything
+    screen.fill(background_color)
+    screen.blit(player_image, (player_rect.x - scroll_x, player_rect.y))
+    pygame.draw.rect(screen, (0, 0, 0), screen.get_rect(), 5)  # Border
+
     pygame.display.flip()
-
-    # Cap the frame rate
     pygame.time.Clock().tick(60)
 
 pygame.quit()
