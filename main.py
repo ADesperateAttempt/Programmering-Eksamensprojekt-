@@ -1,102 +1,107 @@
 import pygame
-import sys
+from pygame.locals import *
+import csv
 
 # Initialize Pygame
 pygame.init()
 
-# Constants
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
-PLAYER_WIDTH = 50
-PLAYER_HEIGHT = 50
-PLAYER_SPEED = 5
-JUMP_HEIGHT = 10
-GRAVITY = 1
+# Game Constants
+WIDTH, HEIGHT = 800, 600
+TILE_SIZE = 32
+GRAVITY = 0.5
+JUMP_STRENGTH = -10
 
 # Colors
-BACKGROUND_COLORS = [(135, 206, 235), (34, 139, 34)]
+WHITE = (255, 255, 255)
+BLUE = (0, 0, 255)
 
+# Screen Setup
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Platformer Game")
+clock = pygame.time.Clock()
+
+# Load TileMap from CSV File
+def load_tile_map(csv_path):
+    tile_map = []
+    with open(csv_path, newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            tile_map.append([int(cell) for cell in row])
+    return tile_map
+
+# Replace with actual CSV file path
+tile_map = load_tile_map("/mnt/data/map_2_Tile Layer 1.csv")
+
+tiles = []
+for row_index, row in enumerate(tile_map):
+    for col_index, tile in enumerate(row):
+        if tile != -1:  # Any tile that is NOT -1 is a solid block
+            tiles.append(pygame.Rect(col_index * TILE_SIZE, row_index * TILE_SIZE, TILE_SIZE, TILE_SIZE))
+
+# Player Class
 class Player:
-    def __init__(self, image_path):
-        self.image = pygame.image.load(image_path)
-        self.rect = self.image.get_rect()
-        self.rect.topleft = (SCREEN_WIDTH // 2, SCREEN_HEIGHT - PLAYER_HEIGHT)
-        self.x_velocity = 0
-        self.y_velocity = 0
+    def __init__(self, x, y):
+        self.rect = pygame.Rect(x, y, 32, 32)
+        self.vel_x = 0
+        self.vel_y = 0
         self.on_ground = False
 
-    def handle_keys(self):
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_LEFT]:
-            self.x_velocity = -PLAYER_SPEED
-        elif keys[pygame.K_RIGHT]:
-            self.x_velocity = PLAYER_SPEED
-        else:
-            self.x_velocity = 0
-
-        if keys[pygame.K_SPACE] and self.on_ground:
-            self.y_velocity = -JUMP_HEIGHT
-            self.on_ground = False
-
-    def apply_gravity(self):
-        self.y_velocity += GRAVITY
-
-    def update_position(self):
-        self.rect.x += self.x_velocity
-        self.rect.y += self.y_velocity
-
-        if self.rect.bottom >= SCREEN_HEIGHT:
-            self.rect.bottom = SCREEN_HEIGHT
-            self.y_velocity = 0
-            self.on_ground = True
-
-    def draw(self, screen, scroll_x):
-        screen.blit(self.image, (self.rect.x - scroll_x, self.rect.y))
-
-class GameManager:
-    def __init__(self):
-        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-        pygame.display.set_caption("Platformer Game")
-        self.clock = pygame.time.Clock()
-        self.player = Player('mario smol.png')
-        self.scroll_x = 0
-        self.running = True
-
-    def run(self):
-        while self.running:
-            self.handle_events()
-            self.update()
-            self.draw()
-            self.clock.tick(60)
-        pygame.quit()
-        sys.exit()
-
-    def handle_events(self):
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                self.running = False
+    def move(self, keys):
+        self.vel_x = 0
+        if keys[K_LEFT]:
+            self.vel_x = -5
+        if keys[K_RIGHT]:
+            self.vel_x = 5
+        if keys[K_SPACE] and self.on_ground:
+            self.vel_y = JUMP_STRENGTH
 
     def update(self):
-        self.player.handle_keys()
-        self.player.apply_gravity()
-        self.player.update_position()
-        self.update_scroll()
+        # Apply gravity
+        self.vel_y += GRAVITY
 
-    def update_scroll(self):
-        if self.player.rect.right > SCREEN_WIDTH:
-            self.scroll_x += self.player.rect.right - SCREEN_WIDTH
-            self.player.rect.right = SCREEN_WIDTH
-        elif self.player.rect.left < 0:
-            self.scroll_x += self.player.rect.left
-            self.player.rect.left = 0
+        # Move X
+        self.rect.x += self.vel_x
+        for tile in tiles:
+            if self.rect.colliderect(tile):
+                if self.vel_x > 0:
+                    self.rect.right = tile.left
+                if self.vel_x < 0:
+                    self.rect.left = tile.right
 
-    def draw(self):
-        background_color = BACKGROUND_COLORS[(self.scroll_x // SCREEN_WIDTH) % len(BACKGROUND_COLORS)]
-        self.screen.fill(background_color)
-        self.player.draw(self.screen, self.scroll_x)
-        pygame.draw.rect(self.screen, (0, 0, 0), self.screen.get_rect(), 5)  # Border
-        pygame.display.flip()
+        # Move Y
+        self.rect.y += self.vel_y
+        self.on_ground = False
+        for tile in tiles:
+            if self.rect.colliderect(tile):
+                if self.vel_y > 0:
+                    self.rect.bottom = tile.top
+                    self.vel_y = 0
+                    self.on_ground = True
+                if self.vel_y < 0:
+                    self.rect.top = tile.bottom
+                    self.vel_y = 0
 
-if __name__ == "__main__":
-    game_manager = GameManager()
-    game_manager.run()
+    def draw(self, screen):
+        pygame.draw.rect(screen, BLUE, self.rect)
+
+# Initialize Player
+player = Player(100, 100)
+
+# Game Loop
+running = True
+while running:
+    screen.fill(WHITE)
+    
+    keys = pygame.key.get_pressed()
+    for event in pygame.event.get():
+        if event.type == QUIT:
+            running = False
+    
+    # Update and draw player
+    player.move(keys)
+    player.update()
+    player.draw(screen)
+    
+    # Draw tiles
+    for tile in tiles:
+        pygame.draw.rect
