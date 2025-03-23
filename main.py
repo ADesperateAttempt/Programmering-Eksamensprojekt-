@@ -22,6 +22,8 @@ clock = pygame.time.Clock()
 # Load tileset image
 tileset_image = pygame.image.load("tilemap.png").convert_alpha()
 
+DEBUG_MODE = False  # Skift til False for at slå debug fra
+
 # Dictionary for caching tile surfaces
 tile_textures = {}
 
@@ -54,11 +56,13 @@ def load_tile_map(csv_path):
             tile_row = []
             for cell in row:
                 try:
+                    cell = cell.strip()  # fjerner mellemrum og usynlige tegn
                     tile_row.append(int(cell))
                 except:
-                    tile_row.append(-1)
+                    tile_row.append(-1)  # hvis tomt eller fejl → ingen blok
             tile_map.append(tile_row)
     return tile_map
+
 
 # --- LOAD MAP DATA ---
 tile_map = load_tile_map("New Long Map_Main_Structure.csv")
@@ -129,6 +133,7 @@ class Player:
     def update(self):
         self.vel_y += GRAVITY
 
+        # --- FASE 1: HORISONTAL BEVÆGELSE ---
         self.rect.x += self.vel_x
         for tile, _ in tiles:
             if self.rect.colliderect(tile):
@@ -137,6 +142,7 @@ class Player:
                 elif self.vel_x < 0:
                     self.rect.left = tile.right
 
+        # --- FASE 2: VERTIKAL BEVÆGELSE ---
         self.rect.y += self.vel_y
         self.on_ground = False
         for tile, _ in tiles:
@@ -149,10 +155,12 @@ class Player:
                     self.rect.top = tile.bottom
                     self.vel_y = 0
 
+        # --- FALDER NED UNDER SKÆRMEN ---
         if self.rect.top > HEIGHT:
             self.rect.x, self.rect.y = player_start
             self.vel_y = 0
 
+        # --- ANIMATION ---
         if self.vel_x != 0:
             self.animation_timer += clock.get_time()
             if self.animation_timer >= self.frame_duration:
@@ -162,6 +170,7 @@ class Player:
             self.current_frame = 1
 
         self.image = self.walk_right[self.current_frame] if self.facing_right else self.walk_left[self.current_frame]
+
 
     def draw(self, screen, camera_offset):
         screen.blit(self.image, (self.rect.x - camera_offset[0], self.rect.y - camera_offset[1]))
@@ -198,11 +207,20 @@ while running:
         if texture:
             screen.blit(texture, (deco_rect.x - camera_offset[0], deco_rect.y - camera_offset[1]))
 
-    # --- DRAW KOLLISIONSTILES ---
+    # --- DRAW COLLISION TILES ---
     for tile_rect, tile_id in tiles:
         texture = get_tile_surface(tile_id)
         if texture:
             screen.blit(texture, (tile_rect.x - camera_offset[0], tile_rect.y - camera_offset[1]))
+
+        if DEBUG_MODE:
+            debug_rect = pygame.Rect(
+                tile_rect.x - camera_offset[0],
+                tile_rect.y - camera_offset[1],
+                TILE_SIZE, TILE_SIZE
+            )
+            pygame.draw.rect(screen, (255, 0, 0, 100), debug_rect, 2)  # rød outline
+
 
     # --- DRAW PLAYER ---
     player.draw(screen, camera_offset)
