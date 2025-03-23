@@ -103,6 +103,11 @@ class Player:
                 elif self.vel_y < 0:
                     self.rect.top = tile.bottom
                     self.vel_y = 0
+        
+        # Teleport if fallen below screen
+        if self.rect.top > HEIGHT:
+            self.rect.x, self.rect.y = player_start
+            self.vel_y = 0
 
     def draw(self, screen):
         pygame.draw.rect(screen, BLUE, self.rect)
