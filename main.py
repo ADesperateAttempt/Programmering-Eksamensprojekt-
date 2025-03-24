@@ -221,7 +221,8 @@ class Player:
             if self.dash_timer <= 0:
                 self.dashing = False
 
-        print(f"vel_y: {self.vel_y}, jumps_left: {self.jumps_remaining}, on_ground: {self.on_ground}")
+        # print(f"vel_y: {self.vel_y}, jumps_left: {self.jumps_remaining}, on_ground: {self.on_ground}")
+        print(player.rect.x, player.rect.y)
         self.vel_y += GRAVITY  # gravity is positive
 
         # Horizontal movement
@@ -284,36 +285,36 @@ class Player:
         if DEBUG_MODE:
             pygame.draw.rect(screen, (0, 255, 0), (self.rect.x - camera_offset[0], self.rect.y - camera_offset[1], self.rect.width, self.rect.height), 1)
 
+# Kill counter
+kill_count = 0
+
 # --- ENEMY CLASS ---
 class Enemy:
-    def __init__(self, x, y):
+    def __init__(self, x, y, patrol_range):
         self.rect = pygame.Rect(x, y, 32, 32)
-        self.direction = 1  # 1 = right, -1 = left
+        self.direction = 1
         self.speed = 1
         self.dead = False
+        self.patrol_range = patrol_range  # (min_x, max_x)
 
-        # Load 2-frame animation
         self.frames = [
-            pygame.image.load("enemy_walk1.png").convert_alpha(),
-            pygame.image.load("enemy_walk2.png").convert_alpha()
+            pygame.image.load("enemy_1.png").convert_alpha(),
+            pygame.image.load("enemy_2.png").convert_alpha()
         ]
         self.frame_index = 0
         self.animation_timer = 0
-        self.frame_duration = 300  # ms between frame switches
+        self.frame_duration = 300
 
     def update(self):
         if self.dead:
             return
 
-        # Move enemy
         self.rect.x += self.direction * self.speed
 
-        # Simple edge detection (turn if hitting wall)
-        for tile, _ in tiles:
-            if self.rect.colliderect(tile):
-                self.rect.x -= self.direction * self.speed
-                self.direction *= -1
-                break
+        # Patrol logic within range
+        if self.rect.x < self.patrol_range[0] or self.rect.x > self.patrol_range[1]:
+            self.direction *= -1
+            self.rect.x += self.direction * self.speed
 
         # Animate
         self.animation_timer += clock.get_time()
@@ -327,12 +328,20 @@ class Enemy:
             if DEBUG_MODE:
                 pygame.draw.rect(screen, (255, 0, 255), (self.rect.x - camera_offset[0], self.rect.y - camera_offset[1], 32, 32), 1)
 
-# --- ENEMY LIST ---
-enemies = [
-    Enemy(320, 288),
-    Enemy(480, 288)
+# --- ENEMY SPAWN SETUP (clean and editable) ---
+enemy_data = [
+    # (tile_x, tile_y, patrol_start_x, patrol_end_x)
+    (6, 8.65, 6, 11),
+    (37, 10.65, 37, 41),
+    (13, 6.65, 13, 16),
+    (30, 6.65, 30, 35),
+    (52, 13.65, 52, 57),
 ]
 
+enemies = [
+    Enemy(x * TILE_SIZE, y * TILE_SIZE, (start * TILE_SIZE, end * TILE_SIZE))
+    for x, y, start, end in enemy_data
+]
 # --- Init player ---
 player = Player(*player_start)
 
@@ -356,11 +365,15 @@ while running:
         enemy.update()
 
         if player.rect.colliderect(enemy.rect) and not enemy.dead:
-            if player.vel_y > 0:
+            if player.vel_y > 0:  # Kill from above
                 enemy.dead = True
                 player.vel_y = JUMP_STRENGTH * 0.7
+                kill_count += 1
             else:
-                pass  # future: damage player here
+                # Insta kill if player touches from side or bottom
+                player.rect.x, player.rect.y = player_start
+                player.vel_y = 0
+                player.jumps_remaining = player.max_jumps
 
     # --- CAMERA FØLGER SPILLER ---
     camera_x = player.rect.centerx - WIDTH // 2
@@ -394,6 +407,11 @@ while running:
 
     # --- DRAW PLAYER ---
     player.draw(screen, camera_offset)
+
+    # --- DRAW KILL COUNTER ---
+    font = pygame.font.SysFont(None, 28)
+    text = font.render(f"Kills: {kill_count}", True, (0, 0, 0))
+    screen.blit(text, (10, 10))
 
     pygame.display.flip()
     clock.tick(60)
