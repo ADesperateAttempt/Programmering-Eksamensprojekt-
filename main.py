@@ -140,6 +140,8 @@ class Player:
         self.vel_y = 0
         self.on_ground = False
         self.jump_pressed = False
+        self.coyote_time = 75 # milliseconds of coyote time
+        self.coyote_timer = 0
 
         # Double jump
         self.max_jumps = 2
@@ -168,10 +170,9 @@ class Player:
             self.vel_x = 5
             self.facing_right = True
 
-        # Handle jump key (space) press detection — WORKING DOUBLE JUMP
         if keys[K_SPACE]:
             if not self.jump_pressed and self.jumps_remaining > 0:
-                # First jump = full height, second = weaker
+                # First jump = full, second = weaker
                 if self.jumps_remaining == self.max_jumps:
                     self.vel_y = JUMP_STRENGTH
                 else:
@@ -197,6 +198,14 @@ class Player:
         # Vertical movement
         self.rect.y += self.vel_y
         self.on_ground = False
+        # Decrease coyote timer
+            # Decrease coyote timer if we're not on ground
+        if not self.on_ground:
+            self.coyote_timer -= clock.get_time()
+
+            # If we’ve fallen off and haven't jumped yet, only allow 1 jump
+            if self.coyote_timer <= 0 and self.jumps_remaining == self.max_jumps:
+                self.jumps_remaining = 1
         for tile, _ in tiles:
             if self.rect.colliderect(tile):
                 if self.vel_y > 0:
@@ -204,6 +213,7 @@ class Player:
                     self.vel_y = 0
                     self.on_ground = True
                     self.jumps_remaining = self.max_jumps  # reset double jump
+                    self.coyote_timer = self.coyote_time # reset coyote time
                 elif self.vel_y < 0:
                     self.rect.top = tile.bottom
                     self.vel_y = 0
