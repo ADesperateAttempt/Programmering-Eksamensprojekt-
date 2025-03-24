@@ -284,7 +284,56 @@ class Player:
         if DEBUG_MODE:
             pygame.draw.rect(screen, (0, 255, 0), (self.rect.x - camera_offset[0], self.rect.y - camera_offset[1], self.rect.width, self.rect.height), 1)
 
-# Init player
+# --- ENEMY CLASS ---
+class Enemy:
+    def __init__(self, x, y):
+        self.rect = pygame.Rect(x, y, 32, 32)
+        self.direction = 1  # 1 = right, -1 = left
+        self.speed = 1
+        self.dead = False
+
+        # Load 2-frame animation
+        self.frames = [
+            pygame.image.load("enemy_walk1.png").convert_alpha(),
+            pygame.image.load("enemy_walk2.png").convert_alpha()
+        ]
+        self.frame_index = 0
+        self.animation_timer = 0
+        self.frame_duration = 300  # ms between frame switches
+
+    def update(self):
+        if self.dead:
+            return
+
+        # Move enemy
+        self.rect.x += self.direction * self.speed
+
+        # Simple edge detection (turn if hitting wall)
+        for tile, _ in tiles:
+            if self.rect.colliderect(tile):
+                self.rect.x -= self.direction * self.speed
+                self.direction *= -1
+                break
+
+        # Animate
+        self.animation_timer += clock.get_time()
+        if self.animation_timer >= self.frame_duration:
+            self.animation_timer = 0
+            self.frame_index = (self.frame_index + 1) % len(self.frames)
+
+    def draw(self, screen, camera_offset):
+        if not self.dead:
+            screen.blit(self.frames[self.frame_index], (self.rect.x - camera_offset[0], self.rect.y - camera_offset[1]))
+            if DEBUG_MODE:
+                pygame.draw.rect(screen, (255, 0, 255), (self.rect.x - camera_offset[0], self.rect.y - camera_offset[1], 32, 32), 1)
+
+# --- ENEMY LIST ---
+enemies = [
+    Enemy(320, 288),
+    Enemy(480, 288)
+]
+
+# --- Init player ---
 player = Player(*player_start)
 
 main_menu()
@@ -301,16 +350,23 @@ while running:
 
     player.move(keys)
     player.update()
-    print(f"Player Pos: {player.rect.x}, {player.rect.y}")
+
+    # --- ENEMY LOGIC ---
+    for enemy in enemies:
+        enemy.update()
+
+        if player.rect.colliderect(enemy.rect) and not enemy.dead:
+            if player.vel_y > 0:
+                enemy.dead = True
+                player.vel_y = JUMP_STRENGTH * 0.7
+            else:
+                pass  # future: damage player here
 
     # --- CAMERA FØLGER SPILLER ---
     camera_x = player.rect.centerx - WIDTH // 2
     camera_y = player.rect.centery - HEIGHT // 2
-
-    # Valgfrit: Begræns kameraet så det ikke går udenfor venstre/top grænser
     camera_x = max(0, camera_x)
     camera_y = max(0, camera_y)
-
     camera_offset = (camera_x, camera_y)
 
     # --- DRAW DEKORATIONER ---
@@ -324,15 +380,17 @@ while running:
         texture = get_tile_surface(tile_id)
         if texture:
             screen.blit(texture, (tile_rect.x - camera_offset[0], tile_rect.y - camera_offset[1]))
-
         if DEBUG_MODE:
             debug_rect = pygame.Rect(
                 tile_rect.x - camera_offset[0],
                 tile_rect.y - camera_offset[1],
                 TILE_SIZE, TILE_SIZE
             )
-            pygame.draw.rect(screen, (255, 0, 0, 100), debug_rect, 2)  # rød outline
+            pygame.draw.rect(screen, (255, 0, 0, 100), debug_rect, 2)
 
+    # --- DRAW ENEMIES ---
+    for enemy in enemies:
+        enemy.draw(screen, camera_offset)
 
     # --- DRAW PLAYER ---
     player.draw(screen, camera_offset)
