@@ -12,7 +12,7 @@ GRAVITY = 0.6
 JUMP_STRENGTH = -14
 
 # Colors
-BACKGROUND_COLOR = (50, 50, 50)
+BACKGROUND_COLOR = (252,223,205,255)
 
 # Screen Setup
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -64,29 +64,37 @@ def load_tile_map(csv_path):
     return tile_map
 
 def main_menu():
-    font_path = "DeterminationMonoWebRegular-Z5oq.ttf"  # ← opdater med din fontsti!
+    font_path = "Und_Font_Short.ttf"  # ← Opdater til dit fontnavn!
+    font_path2 = "Und_Font_Long.ttf"  # ← Opdater til dit fontnavn!
     try:
-        title_font = pygame.font.Font(font_path, 36)
+        title_font = pygame.font.Font(font_path, 72)
+        instruction_font = pygame.font.Font(font_path2, 28)
     except:
-        print("Kunne ikke indlæse font, bruger system font i stedet.")
-        title_font = pygame.font.SysFont(None, 36)
+        print("Kunne ikke indlæse font – bruger standard i stedet.")
+        title_font = pygame.font.SysFont(None, 72)
+        instruction_font = pygame.font.SysFont(None, 28)
 
     menu_running = True
 
     while menu_running:
         screen.fill((0, 0, 0))  # sort baggrund
 
-        # Tekst
-        text_surface = title_font.render("Press Any Button To Start", True, (255, 255, 255))
-        text_rect = text_surface.get_rect(center=(WIDTH // 2, HEIGHT-120))
-        screen.blit(text_surface, text_rect)
+        # Titel (øverst centreret)
+        title_text = title_font.render("Space Type Shi", True, (255, 255, 255))
+        title_rect = title_text.get_rect(center=(WIDTH // 2, HEIGHT // 3))
+        screen.blit(title_text, title_rect)
+
+        # Instruktion (nederst centreret)
+        instruction_text = instruction_font.render("Press Any Button To Start", True, (255, 255, 255))
+        instruction_rect = instruction_text.get_rect(center=(WIDTH // 2, HEIGHT - 80))
+        screen.blit(instruction_text, instruction_rect)
 
         for event in pygame.event.get():
             if event.type == QUIT:
                 pygame.quit()
                 exit()
             elif event.type == KEYDOWN or event.type == MOUSEBUTTONDOWN:
-                menu_running = False  # Start spillet
+                menu_running = False  # Starter spillet
 
         pygame.display.flip()
         clock.tick(60)
@@ -131,13 +139,17 @@ class Player:
         self.vel_x = 0
         self.vel_y = 0
         self.on_ground = False
+        self.jump_pressed = False
+
+        # Double jump
+        self.max_jumps = 2
+        self.jumps_remaining = self.max_jumps
 
         # Load animation frames
         walk1 = pygame.image.load("pixil-frame-1.png").convert_alpha()
         walk2 = pygame.image.load("pixil-frame-2.png").convert_alpha()
         walk3 = pygame.image.load("pixil-frame-3.png").convert_alpha()
 
-        # Animation order: 1 → 2 → 3 → 2 → repeat
         self.walk_right = [walk1, walk2, walk3, walk2]
         self.walk_left = [pygame.transform.flip(f, True, False) for f in self.walk_right]
 
@@ -155,13 +167,25 @@ class Player:
         if keys[K_d]:
             self.vel_x = 5
             self.facing_right = True
-        if keys[K_SPACE] and self.on_ground:
-            self.vel_y = JUMP_STRENGTH
+
+        # Handle jump key (space) press detection — WORKING DOUBLE JUMP
+        if keys[K_SPACE]:
+            if not self.jump_pressed and self.jumps_remaining > 0:
+                # First jump = full height, second = weaker
+                if self.jumps_remaining == self.max_jumps:
+                    self.vel_y = JUMP_STRENGTH
+                else:
+                    self.vel_y = JUMP_STRENGTH * 0.6
+                self.jumps_remaining -= 1
+                self.jump_pressed = True
+        else:
+            self.jump_pressed = False
 
     def update(self):
-        self.vel_y += GRAVITY
+        print(f"vel_y: {self.vel_y}, jumps_left: {self.jumps_remaining}, on_ground: {self.on_ground}")
+        self.vel_y += GRAVITY  # gravity is positive
 
-        # --- FASE 1: HORISONTAL BEVÆGELSE ---
+        # Horizontal movement
         self.rect.x += self.vel_x
         for tile, _ in tiles:
             if self.rect.colliderect(tile):
@@ -170,7 +194,7 @@ class Player:
                 elif self.vel_x < 0:
                     self.rect.left = tile.right
 
-        # --- FASE 2: VERTIKAL BEVÆGELSE ---
+        # Vertical movement
         self.rect.y += self.vel_y
         self.on_ground = False
         for tile, _ in tiles:
@@ -179,16 +203,18 @@ class Player:
                     self.rect.bottom = tile.top
                     self.vel_y = 0
                     self.on_ground = True
+                    self.jumps_remaining = self.max_jumps  # reset double jump
                 elif self.vel_y < 0:
                     self.rect.top = tile.bottom
                     self.vel_y = 0
 
-        # --- FALDER NED UNDER SKÆRMEN ---
+        # Respawn if falling off screen
         if self.rect.top > HEIGHT:
             self.rect.x, self.rect.y = player_start
             self.vel_y = 0
+            self.jumps_remaining = self.max_jumps
 
-        # --- ANIMATION ---
+        # Animation
         if self.vel_x != 0:
             self.animation_timer += clock.get_time()
             if self.animation_timer >= self.frame_duration:
@@ -199,9 +225,11 @@ class Player:
 
         self.image = self.walk_right[self.current_frame] if self.facing_right else self.walk_left[self.current_frame]
 
-
     def draw(self, screen, camera_offset):
         screen.blit(self.image, (self.rect.x - camera_offset[0], self.rect.y - camera_offset[1]))
+
+        if DEBUG_MODE:
+            pygame.draw.rect(screen, (0, 255, 0), (self.rect.x - camera_offset[0], self.rect.y - camera_offset[1], self.rect.width, self.rect.height), 1)
 
 # Init player
 player = Player(*player_start)
@@ -220,6 +248,7 @@ while running:
 
     player.move(keys)
     player.update()
+    print(f"Player Pos: {player.rect.x}, {player.rect.y}")
 
     # --- CAMERA FØLGER SPILLER ---
     camera_x = player.rect.centerx - WIDTH // 2
