@@ -8,7 +8,7 @@ pygame.init()
 # Game Constants
 WIDTH, HEIGHT = 800, 600
 TILE_SIZE = 32
-GRAVITY = 0.7
+GRAVITY = 0.6
 JUMP_STRENGTH = -14
 
 # Colors
@@ -62,6 +62,34 @@ def load_tile_map(csv_path):
                     tile_row.append(-1)  # hvis tomt eller fejl → ingen blok
             tile_map.append(tile_row)
     return tile_map
+
+def main_menu():
+    font_path = "DeterminationMonoWebRegular-Z5oq.ttf"  # ← opdater med din fontsti!
+    try:
+        title_font = pygame.font.Font(font_path, 36)
+    except:
+        print("Kunne ikke indlæse font, bruger system font i stedet.")
+        title_font = pygame.font.SysFont(None, 36)
+
+    menu_running = True
+
+    while menu_running:
+        screen.fill((0, 0, 0))  # sort baggrund
+
+        # Tekst
+        text_surface = title_font.render("Press Any Button To Start", True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center=(WIDTH // 2, HEIGHT-120))
+        screen.blit(text_surface, text_rect)
+
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                pygame.quit()
+                exit()
+            elif event.type == KEYDOWN or event.type == MOUSEBUTTONDOWN:
+                menu_running = False  # Start spillet
+
+        pygame.display.flip()
+        clock.tick(60)
 
 
 # --- LOAD MAP DATA ---
@@ -177,6 +205,8 @@ class Player:
 
 # Init player
 player = Player(*player_start)
+
+main_menu()
 
 # --- GAME LOOP ---
 running = True
