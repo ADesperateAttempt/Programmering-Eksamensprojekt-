@@ -22,10 +22,19 @@ clock = pygame.time.Clock()
 # Load tileset image
 tileset_image = pygame.image.load("tilemap.png").convert_alpha()
 
-DEBUG_MODE = False  # Skift til False for at slå debug fra
+DEBUG_MODE = True  # Skift til False for at slå debug fra
 
 # Dictionary for caching tile surfaces
 tile_textures = {}
+
+# Font for pause menu
+pause_font = pygame.font.Font("Und_Font_Short.ttf", 36)
+
+# Pause state
+paused = False
+pause_options = ["Resume", "Settings", "Main Menu"]
+pause_index = 0
+confirm_main_menu = False
 
 def get_tile_surface(tile_id):
     try:
@@ -101,21 +110,14 @@ def main_menu():
 
 
 # --- LOAD MAP DATA ---
-tile_map = load_tile_map("New Long Map_Main_Structure.csv")
-decoration_map = load_tile_map("New Long Map_Decorations.csv")
+tile_map = load_tile_map("New Long Map 2_Main_Structure.csv")
+decoration_map = load_tile_map("New Long Map 2_Decorations.csv")
 
 MAP_WIDTH_IN_TILES = len(tile_map[0])
 MAP_HEIGHT_IN_TILES = len(tile_map)
 
-# --- FIND PLAYER START: Øverste og venstre gyldige tile ---
+# --- PLAYER START LOCATION (x,y) ---
 player_start = (32,288)
-for row_index, row in enumerate(tile_map):
-    for col_index, tile_id in enumerate(row):
-        if tile_id != -1:
-            player_start = (col_index * TILE_SIZE, row_index * TILE_SIZE - TILE_SIZE)
-            break
-    if player_start is not None:
-        break
 
 # --- BUILD COLLISION TILES ---
 tiles = []
@@ -223,6 +225,7 @@ class Player:
 
         # print(f"vel_y: {self.vel_y}, jumps_left: {self.jumps_remaining}, on_ground: {self.on_ground}")
         print(player.rect.x, player.rect.y)
+        
         self.vel_y += GRAVITY  # gravity is positive
 
         # Horizontal movement
@@ -296,7 +299,6 @@ class Enemy:
         self.speed = 1
         self.dead = False
         self.patrol_range = patrol_range  # (min_x, max_x)
-
         self.frames = [
             pygame.image.load("enemy_1.png").convert_alpha(),
             pygame.image.load("enemy_2.png").convert_alpha()
@@ -308,15 +310,10 @@ class Enemy:
     def update(self):
         if self.dead:
             return
-
         self.rect.x += self.direction * self.speed
-
-        # Patrol logic within range
         if self.rect.x < self.patrol_range[0] or self.rect.x > self.patrol_range[1]:
             self.direction *= -1
             self.rect.x += self.direction * self.speed
-
-        # Animate
         self.animation_timer += clock.get_time()
         if self.animation_timer >= self.frame_duration:
             self.animation_timer = 0
@@ -350,70 +347,99 @@ main_menu()
 # --- GAME LOOP ---
 running = True
 while running:
+    dt = clock.tick(60)
     screen.fill(BACKGROUND_COLOR)
 
     keys = pygame.key.get_pressed()
     for event in pygame.event.get():
         if event.type == QUIT:
             running = False
+        elif event.type == KEYDOWN:
+            if event.key == K_ESCAPE:
+                paused = not paused
+                confirm_main_menu = False
+            elif paused:
+                if event.key == K_UP:
+                    pause_index = (pause_index - 1) % len(pause_options)
+                elif event.key == K_DOWN:
+                    pause_index = (pause_index + 1) % len(pause_options)
+                elif event.key == K_RETURN:
+                    selected = pause_options[pause_index]
+                    if confirm_main_menu and selected == "Main Menu":
+                        main_menu()
+                        player.rect.x, player.rect.y = player_start
+                        kill_count = 0
+                        for enemy in enemies:
+                            enemy.dead = False
+                        paused = False
+                    elif selected == "Resume":
+                        paused = False
+                    elif selected == "Main Menu":
+                        confirm_main_menu = True
 
-    player.move(keys)
-    player.update()
+    if not paused:
+        player.move(keys)
+        player.update()
 
-    # --- ENEMY LOGIC ---
-    for enemy in enemies:
-        enemy.update()
+        for enemy in enemies:
+            enemy.update()
+            if player.rect.colliderect(enemy.rect) and not enemy.dead:
+                if player.vel_y > 0:
+                    enemy.dead = True
+                    player.vel_y = JUMP_STRENGTH * 0.7
+                    kill_count += 1
+                else:
+                    player.rect.x, player.rect.y = player_start
+                    player.vel_y = 0
+                    player.jumps_remaining = player.max_jumps
 
-        if player.rect.colliderect(enemy.rect) and not enemy.dead:
-            if player.vel_y > 0:  # Kill from above
-                enemy.dead = True
-                player.vel_y = JUMP_STRENGTH * 0.7
-                kill_count += 1
-            else:
-                # Insta kill if player touches from side or bottom
-                player.rect.x, player.rect.y = player_start
-                player.vel_y = 0
-                player.jumps_remaining = player.max_jumps
-
-    # --- CAMERA FØLGER SPILLER ---
     camera_x = player.rect.centerx - WIDTH // 2
     camera_y = player.rect.centery - HEIGHT // 2
     camera_x = max(0, camera_x)
     camera_y = max(0, camera_y)
     camera_offset = (camera_x, camera_y)
 
-    # --- DRAW DEKORATIONER ---
     for deco_rect, deco_id in decoration_tiles:
         texture = get_tile_surface(deco_id)
         if texture:
             screen.blit(texture, (deco_rect.x - camera_offset[0], deco_rect.y - camera_offset[1]))
 
-    # --- DRAW COLLISION TILES ---
     for tile_rect, tile_id in tiles:
         texture = get_tile_surface(tile_id)
         if texture:
             screen.blit(texture, (tile_rect.x - camera_offset[0], tile_rect.y - camera_offset[1]))
         if DEBUG_MODE:
-            debug_rect = pygame.Rect(
-                tile_rect.x - camera_offset[0],
-                tile_rect.y - camera_offset[1],
-                TILE_SIZE, TILE_SIZE
-            )
+            debug_rect = pygame.Rect(tile_rect.x - camera_offset[0], tile_rect.y - camera_offset[1], TILE_SIZE, TILE_SIZE)
             pygame.draw.rect(screen, (255, 0, 0, 100), debug_rect, 2)
 
-    # --- DRAW ENEMIES ---
     for enemy in enemies:
         enemy.draw(screen, camera_offset)
 
-    # --- DRAW PLAYER ---
     player.draw(screen, camera_offset)
 
-    # --- DRAW KILL COUNTER ---
     font = pygame.font.SysFont(None, 28)
     text = font.render(f"Kills: {kill_count}", True, (0, 0, 0))
     screen.blit(text, (10, 10))
 
+    if paused:
+        overlay = pygame.Surface((WIDTH, HEIGHT))
+        overlay.set_alpha(180)
+        overlay.fill((0, 0, 0))
+        screen.blit(overlay, (0, 0))
+
+        for i, option in enumerate(pause_options):
+            color = (255, 255, 255)
+            rendered = pause_font.render(option, True, color)
+            rect = rendered.get_rect(center=(WIDTH // 2, HEIGHT // 2 + i * 50))
+            screen.blit(rendered, rect)
+            if i == pause_index:
+                pygame.draw.rect(screen, (255, 255, 255), rect.inflate(10, 10), 2)
+
+        if confirm_main_menu and pause_options[pause_index] == "Main Menu":
+            confirm_font = pygame.font.Font("Und_Font_Short.ttf", 20)
+            msg = confirm_font.render("Press Enter again to return to menu", True, (255, 100, 100))
+            screen.blit(msg, msg.get_rect(center=(WIDTH // 2, HEIGHT // 2 + len(pause_options) * 60)))
+
     pygame.display.flip()
-    clock.tick(60)
 
 pygame.quit()
