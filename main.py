@@ -85,7 +85,7 @@ def main_menu():
         screen.blit(title_text, title_rect)
 
         # Instruktion (nederst centreret)
-        instruction_text = instruction_font.render("Press Any Button To Start", True, (255, 255, 255))
+        instruction_text = instruction_font.render("Press Enter To Start", True, (255, 255, 255))
         instruction_rect = instruction_text.get_rect(center=(WIDTH // 2, HEIGHT - 80))
         screen.blit(instruction_text, instruction_rect)
 
@@ -93,8 +93,8 @@ def main_menu():
             if event.type == QUIT:
                 pygame.quit()
                 exit()
-            elif event.type == KEYDOWN or event.type == MOUSEBUTTONDOWN:
-                menu_running = False  # Starter spillet
+            elif event.type == KEYDOWN and event.key == K_RETURN:
+                menu_running = False  # Only start if ENTER is pressed
 
         pygame.display.flip()
         clock.tick(60)
@@ -104,8 +104,11 @@ def main_menu():
 tile_map = load_tile_map("New Long Map_Main_Structure.csv")
 decoration_map = load_tile_map("New Long Map_Decorations.csv")
 
+MAP_WIDTH_IN_TILES = len(tile_map[0])
+MAP_HEIGHT_IN_TILES = len(tile_map)
+
 # --- FIND PLAYER START: Øverste og venstre gyldige tile ---
-player_start = (0,13)
+player_start = (32,288)
 for row_index, row in enumerate(tile_map):
     for col_index, tile_id in enumerate(row):
         if tile_id != -1:
@@ -121,6 +124,14 @@ for row_index, row in enumerate(tile_map):
         if tile_id != -1:
             tile_rect = pygame.Rect(col_index * TILE_SIZE, row_index * TILE_SIZE, TILE_SIZE, TILE_SIZE)
             tiles.append((tile_rect, tile_id))
+
+# Add border on far left and right of map
+for row in range(MAP_HEIGHT_IN_TILES):
+    left_rect = pygame.Rect(0, row * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+    right_rect = pygame.Rect((MAP_WIDTH_IN_TILES - 1) * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+
+    tiles.append((left_rect, -999))   # -999 is just a dummy ID
+    tiles.append((right_rect, -999))  # you can also assign a real texture if you want
 
 
 
@@ -143,6 +154,13 @@ class Player:
         self.coyote_time = 75 # milliseconds of coyote time
         self.coyote_timer = 0
 
+        self.dash_power = 12         # speed of dash
+        self.dash_duration = 135     # ms dash lasts
+        self.dash_cooldown = 1000   # ms between dashes
+        self.dashing = False
+        self.dash_timer = 0
+        self.dash_cooldown_timer = 0
+
         # Double jump
         self.max_jumps = 2
         self.jumps_remaining = self.max_jumps
@@ -164,10 +182,10 @@ class Player:
     def move(self, keys):
         self.vel_x = 0
         if keys[K_a]:
-            self.vel_x = -5
+            self.vel_x = -6
             self.facing_right = False
         if keys[K_d]:
-            self.vel_x = 5
+            self.vel_x = 6
             self.facing_right = True
 
         if keys[K_SPACE]:
@@ -181,13 +199,38 @@ class Player:
                 self.jump_pressed = True
         else:
             self.jump_pressed = False
+        
+        # Handle dashing
+        if keys[K_LSHIFT]:
+            if not self.dashing and self.dash_cooldown_timer <= 0:
+                self.dashing = True
+                self.dash_timer = self.dash_duration
+                self.dash_cooldown_timer = self.dash_cooldown
 
     def update(self):
+
+        dt = clock.get_time()  # ms since last frame
+
+        # Tick cooldown
+        if self.dash_cooldown_timer > 0:
+            self.dash_cooldown_timer -= dt
+
+        # Tick dash timer
+        if self.dashing:
+            self.dash_timer -= dt
+            if self.dash_timer <= 0:
+                self.dashing = False
+
         print(f"vel_y: {self.vel_y}, jumps_left: {self.jumps_remaining}, on_ground: {self.on_ground}")
         self.vel_y += GRAVITY  # gravity is positive
 
         # Horizontal movement
-        self.rect.x += self.vel_x
+        # Horizontal movement
+        if self.dashing:
+            direction = 1 if self.facing_right else -1
+            self.rect.x += direction * self.dash_power
+        else:
+            self.rect.x += self.vel_x
         for tile, _ in tiles:
             if self.rect.colliderect(tile):
                 if self.vel_x > 0:
