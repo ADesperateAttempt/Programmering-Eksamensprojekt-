@@ -29,12 +29,16 @@ tile_textures = {}
 
 # Font for pause menu
 pause_font = pygame.font.Font("Und_Font_Short.ttf", 36)
+confirm_font = pygame.font.Font("Und_Font_Short.ttf", 20)
 
 # Pause state
 paused = False
 pause_options = ["Resume", "Settings", "Main Menu"]
 pause_index = 0
 confirm_main_menu = False
+settings_open = False
+settings_options = ["Return", "Save", "DEBUG"]
+settings_index = 0
 
 def get_tile_surface(tile_id):
     try:
@@ -65,35 +69,32 @@ def load_tile_map(csv_path):
             tile_row = []
             for cell in row:
                 try:
-                    cell = cell.strip()  # fjerner mellemrum og usynlige tegn
+                    cell = cell.strip()
                     tile_row.append(int(cell))
                 except:
-                    tile_row.append(-1)  # hvis tomt eller fejl → ingen blok
+                    tile_row.append(-1)
             tile_map.append(tile_row)
     return tile_map
 
 def main_menu():
-    font_path = "Und_Font_Short.ttf"  # ← Opdater til dit fontnavn!
-    font_path2 = "Und_Font_Long.ttf"  # ← Opdater til dit fontnavn!
+    font_path = "Und_Font_Short.ttf"
+    font_path2 = "Und_Font_Long.ttf"
     try:
         title_font = pygame.font.Font(font_path, 72)
         instruction_font = pygame.font.Font(font_path2, 28)
     except:
-        print("Kunne ikke indlæse font – bruger standard i stedet.")
         title_font = pygame.font.SysFont(None, 72)
         instruction_font = pygame.font.SysFont(None, 28)
 
     menu_running = True
 
     while menu_running:
-        screen.fill((0, 0, 0))  # sort baggrund
+        screen.fill((0, 0, 0))
 
-        # Titel (øverst centreret)
         title_text = title_font.render("Space Type Shi", True, (255, 255, 255))
         title_rect = title_text.get_rect(center=(WIDTH // 2, HEIGHT // 3))
         screen.blit(title_text, title_rect)
 
-        # Instruktion (nederst centreret)
         instruction_text = instruction_font.render("Press Enter To Start", True, (255, 255, 255))
         instruction_rect = instruction_text.get_rect(center=(WIDTH // 2, HEIGHT - 80))
         screen.blit(instruction_text, instruction_rect)
@@ -103,16 +104,14 @@ def main_menu():
                 pygame.quit()
                 exit()
             elif event.type == KEYDOWN and event.key == K_RETURN:
-                menu_running = False  # Only start if ENTER is pressed
+                menu_running = False
 
         pygame.display.flip()
         clock.tick(60)
 
-
 # --- LOAD MAP DATA ---
 tile_map = load_tile_map("New Long Map 2_Main_Structure.csv")
 decoration_map = load_tile_map("New Long Map 2_Decorations.csv")
-
 MAP_WIDTH_IN_TILES = len(tile_map[0])
 MAP_HEIGHT_IN_TILES = len(tile_map)
 
@@ -126,6 +125,9 @@ for row_index, row in enumerate(tile_map):
         if tile_id != -1:
             tile_rect = pygame.Rect(col_index * TILE_SIZE, row_index * TILE_SIZE, TILE_SIZE, TILE_SIZE)
             tiles.append((tile_rect, tile_id))
+for row in range(MAP_HEIGHT_IN_TILES):
+    tiles.append((pygame.Rect(0, row * TILE_SIZE, TILE_SIZE, TILE_SIZE), -999))
+    tiles.append((pygame.Rect((MAP_WIDTH_IN_TILES - 1) * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE), -999))
 
 # Add border on far left and right of map
 for row in range(MAP_HEIGHT_IN_TILES):
@@ -349,38 +351,58 @@ running = True
 while running:
     dt = clock.tick(60)
     screen.fill(BACKGROUND_COLOR)
-
     keys = pygame.key.get_pressed()
+
     for event in pygame.event.get():
         if event.type == QUIT:
             running = False
         elif event.type == KEYDOWN:
             if event.key == K_ESCAPE:
-                paused = not paused
-                confirm_main_menu = False
+                if settings_open:
+                    settings_open = False
+                elif paused:
+                    paused = False
+                else:
+                    paused = True
+                    confirm_main_menu = False
+            elif settings_open:
+                if event.key in [K_w, K_UP]:
+                    settings_index = (settings_index - 1) % len(settings_options)
+                elif event.key in [K_s, K_DOWN]:
+                    settings_index = (settings_index + 1) % len(settings_options)
+                elif event.key in [K_SPACE, K_RETURN]:
+                    selected_setting = settings_options[settings_index]
+                    if selected_setting == "Return":
+                        settings_open = False
+                    elif selected_setting == "DEBUG":
+                        DEBUG_MODE = not DEBUG_MODE
             elif paused:
-                if event.key == K_UP:
+                if event.key in [K_w, K_UP]:
                     pause_index = (pause_index - 1) % len(pause_options)
-                elif event.key == K_DOWN:
+                elif event.key in [K_s, K_DOWN]:
                     pause_index = (pause_index + 1) % len(pause_options)
-                elif event.key == K_RETURN:
+                elif event.key in [K_SPACE, K_RETURN]:
                     selected = pause_options[pause_index]
-                    if confirm_main_menu and selected == "Main Menu":
-                        main_menu()
-                        player.rect.x, player.rect.y = player_start
-                        kill_count = 0
-                        for enemy in enemies:
-                            enemy.dead = False
+                    if selected == "Resume":
                         paused = False
-                    elif selected == "Resume":
-                        paused = False
+                    elif selected == "Settings":
+                        settings_open = True
+                        settings_index = 0
                     elif selected == "Main Menu":
-                        confirm_main_menu = True
+                        if confirm_main_menu:
+                            main_menu()
+                            player.rect.x, player.rect.y = player_start
+                            kill_count = 0
+                            for enemy in enemies:
+                                enemy.dead = False
+                            paused = False
+                            confirm_main_menu = False
+                        else:
+                            confirm_main_menu = True
 
     if not paused:
         player.move(keys)
         player.update()
-
         for enemy in enemies:
             enemy.update()
             if player.rect.colliderect(enemy.rect) and not enemy.dead:
@@ -427,18 +449,27 @@ while running:
         overlay.fill((0, 0, 0))
         screen.blit(overlay, (0, 0))
 
-        for i, option in enumerate(pause_options):
-            color = (255, 255, 255)
-            rendered = pause_font.render(option, True, color)
-            rect = rendered.get_rect(center=(WIDTH // 2, HEIGHT // 2 + i * 50))
-            screen.blit(rendered, rect)
-            if i == pause_index:
-                pygame.draw.rect(screen, (255, 255, 255), rect.inflate(10, 10), 2)
+        if settings_open:
+            for i, option in enumerate(settings_options):
+                color = (255, 255, 255)
+                rendered = pause_font.render(option + (" : ON" if option == "DEBUG" and DEBUG_MODE else " : OFF" if option == "DEBUG" else ""), True, color)
+                rect = rendered.get_rect(center=(WIDTH // 2, HEIGHT // 2 + i * 50))
+                screen.blit(rendered, rect)
+                if i == settings_index:
+                    pygame.draw.rect(screen, (255, 255, 255), rect.inflate(10, 10), 2)
+        else:
+            for i, option in enumerate(pause_options):
+                color = (255, 255, 255)
+                rendered = pause_font.render(option, True, color)
+                rect = rendered.get_rect(center=(WIDTH // 2, HEIGHT // 2 + i * 50))
+                screen.blit(rendered, rect)
+                if i == pause_index:
+                    pygame.draw.rect(screen, (255, 255, 255), rect.inflate(10, 10), 2)
 
-        if confirm_main_menu and pause_options[pause_index] == "Main Menu":
-            confirm_font = pygame.font.Font("Und_Font_Short.ttf", 20)
-            msg = confirm_font.render("Press Enter again to return to menu", True, (255, 100, 100))
-            screen.blit(msg, msg.get_rect(center=(WIDTH // 2, HEIGHT // 2 + len(pause_options) * 60)))
+            if confirm_main_menu and pause_options[pause_index] == "Main Menu":
+                confirm_font = pygame.font.Font("Und_Font_Short.ttf", 20)
+                msg = confirm_font.render("Press Enter again to return to menu", True, (255, 100, 100))
+                screen.blit(msg, msg.get_rect(center=(WIDTH // 2, HEIGHT // 2 + len(pause_options) * 60)))
 
     pygame.display.flip()
 
