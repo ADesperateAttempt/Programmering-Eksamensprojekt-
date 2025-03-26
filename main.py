@@ -22,7 +22,7 @@ clock = pygame.time.Clock()
 # Load tileset image
 tileset_image = pygame.image.load("tilemap.png").convert_alpha()
 
-DEBUG_MODE = True  # Skift til False for at slå debug fra
+DEBUG_MODE = False  # Skift til False for at slå debug fra
 
 # Dictionary for caching tile surfaces
 tile_textures = {}
@@ -147,6 +147,42 @@ for row_index, row in enumerate(decoration_map):
             tile_rect = pygame.Rect(col_index * TILE_SIZE, row_index * TILE_SIZE, TILE_SIZE, TILE_SIZE)
             decoration_tiles.append((tile_rect, tile_id))
 
+# --- CHECKPOINT CLASS ---
+class Checkpoint:
+    def __init__(self, x, y):
+        self.rect = pygame.Rect(x, y, 32, 32)
+        self.activated = False
+        self.frames = [
+            pygame.image.load(f"checkpoint_{i}.png").convert_alpha()
+            for i in range(5)  # now 6 frames
+        ]
+        self.frame_index = 0
+        self.animation_timer = 0
+        self.frame_duration = 150  # ms
+        self.display_message = False
+        self.message_timer = 0
+
+    def update(self):
+        self.animation_timer += clock.get_time()
+        if self.animation_timer >= self.frame_duration:
+            self.animation_timer = 0
+            self.frame_index = (self.frame_index + 1) % len(self.frames)
+
+        if self.display_message:
+            self.message_timer -= clock.get_time()
+            if self.message_timer <= 0:
+                self.display_message = False
+
+    def draw(self, screen, camera_offset):
+        frame = self.frames[self.frame_index]
+        screen.blit(frame, (self.rect.x - camera_offset[0], self.rect.y - camera_offset[1]))
+
+        if self.display_message:
+            font = pygame.font.Font("Und_Font_Short.ttf", 24)
+            message = font.render("Your Progress Has Been Saved", True, (0, 255, 0))
+            msg_rect = message.get_rect(center=(WIDTH // 2, 40))
+            screen.blit(message, msg_rect)
+
 # --- PLAYER CLASS ---
 class Player:
     def __init__(self, x, y):
@@ -269,7 +305,7 @@ class Player:
 
         # Respawn if falling off screen
         if self.rect.top > HEIGHT:
-            self.rect.x, self.rect.y = player_start
+            self.rect.x, self.rect.y = current_checkpoint
             self.vel_y = 0
             self.jumps_remaining = self.max_jumps
 
@@ -334,7 +370,7 @@ enemy_data = [
     (37, 10.65, 37, 41),
     (13, 6.65, 13, 16),
     (30, 6.65, 30, 35),
-    (52, 13.65, 52, 57),
+    (55, 13.65, 55, 60),
 ]
 
 enemies = [
@@ -345,6 +381,16 @@ enemies = [
 player = Player(*player_start)
 
 main_menu()
+
+# Create checkpoints at specific manual positions
+checkpoint_positions = [
+    (5 * TILE_SIZE, 5 * TILE_SIZE),
+    (20 * TILE_SIZE, 10 * TILE_SIZE),
+    (35 * TILE_SIZE, 12 * TILE_SIZE)
+]
+
+checkpoints = [Checkpoint(1960 , 448) for x, y in checkpoint_positions]
+current_checkpoint = player_start  # default spawn point
 
 # --- GAME LOOP ---
 running = True
@@ -401,6 +447,15 @@ while running:
                             confirm_main_menu = True
 
     if not paused:
+        # Update checkpoints
+        for checkpoint in checkpoints:
+            checkpoint.update()
+            if player.rect.colliderect(checkpoint.rect) and not checkpoint.activated:
+                checkpoint.activated = True
+                current_checkpoint = (checkpoint.rect.x, checkpoint.rect.y)
+                checkpoint.display_message = True
+                checkpoint.message_timer = 2000  # ms
+
         player.move(keys)
         player.update()
         for enemy in enemies:
@@ -410,6 +465,7 @@ while running:
                     enemy.dead = True
                     player.vel_y = JUMP_STRENGTH * 0.7
                     kill_count += 1
+                    player.jumps_remaining = player.max_jumps  # <-- Regain double jumps
                 else:
                     player.rect.x, player.rect.y = player_start
                     player.vel_y = 0
@@ -436,6 +492,9 @@ while running:
 
     for enemy in enemies:
         enemy.draw(screen, camera_offset)
+
+    for checkpoint in checkpoints:
+            checkpoint.draw(screen, camera_offset)
 
     player.draw(screen, camera_offset)
 
