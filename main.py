@@ -389,7 +389,7 @@ checkpoint_positions = [
     (35 * TILE_SIZE, 12 * TILE_SIZE)
 ]
 
-checkpoints = [Checkpoint(1960 , 448) for x, y in checkpoint_positions]
+checkpoints = [Checkpoint(1950 , 416) for x, y in checkpoint_positions]
 current_checkpoint = player_start  # default spawn point
 
 # --- GAME LOOP ---
