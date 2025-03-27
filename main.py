@@ -21,11 +21,9 @@ clock = pygame.time.Clock()
 
 # Load tileset image
 tileset_image = pygame.image.load("tilemap.png").convert_alpha()
+tutorial_tileset = pygame.image.load("ad-tutorial.png").convert_alpha()
 
-DEBUG_MODE = False  # Skift til False for at slå debug fra
-
-# Dictionary for caching tile surfaces
-tile_textures = {}
+DEBUG_MODE = False
 
 # Font for pause menu
 pause_font = pygame.font.Font("Und_Font_Short.ttf", 36)
@@ -40,27 +38,21 @@ settings_open = False
 settings_options = ["Return", "Save", "DEBUG"]
 settings_index = 0
 
-def get_tile_surface(tile_id):
+def get_tile_surface(tile_id, tileset):
     try:
         tile_id = int(tile_id)
     except:
         return None
     if tile_id == -1:
         return None
-    if tile_id in tile_textures:
-        return tile_textures[tile_id]
-    else:
-        tiles_per_row = tileset_image.get_width() // TILE_SIZE
-        tile_x = (tile_id % tiles_per_row) * TILE_SIZE
-        tile_y = (tile_id // tiles_per_row) * TILE_SIZE
-        try:
-            tile_surface = tileset_image.subsurface(pygame.Rect(tile_x, tile_y, TILE_SIZE, TILE_SIZE))
-            tile_textures[tile_id] = tile_surface
-            return tile_surface
-        except:
-            return None
+    tiles_per_row = tileset.get_width() // TILE_SIZE
+    tile_x = (tile_id % tiles_per_row) * TILE_SIZE
+    tile_y = (tile_id // tiles_per_row) * TILE_SIZE
+    try:
+        return tileset.subsurface(pygame.Rect(tile_x, tile_y, TILE_SIZE, TILE_SIZE))
+    except:
+        return None
 
-# Load TileMap from CSV with safe int conversion
 def load_tile_map(csv_path):
     tile_map = []
     with open(csv_path, newline='') as csvfile:
@@ -112,6 +104,7 @@ def main_menu():
 # --- LOAD MAP DATA ---
 tile_map = load_tile_map("New Long Map 2_Main_Structure.csv")
 decoration_map = load_tile_map("New Long Map 2_Decorations.csv")
+tutorial_map = load_tile_map("TutorialDecorations.csv")
 MAP_WIDTH_IN_TILES = len(tile_map[0])
 MAP_HEIGHT_IN_TILES = len(tile_map)
 
@@ -125,21 +118,8 @@ for row_index, row in enumerate(tile_map):
         if tile_id != -1:
             tile_rect = pygame.Rect(col_index * TILE_SIZE, row_index * TILE_SIZE, TILE_SIZE, TILE_SIZE)
             tiles.append((tile_rect, tile_id))
-for row in range(MAP_HEIGHT_IN_TILES):
-    tiles.append((pygame.Rect(0, row * TILE_SIZE, TILE_SIZE, TILE_SIZE), -999))
-    tiles.append((pygame.Rect((MAP_WIDTH_IN_TILES - 1) * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE), -999))
 
-# Add border on far left and right of map
-for row in range(MAP_HEIGHT_IN_TILES):
-    left_rect = pygame.Rect(0, row * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-    right_rect = pygame.Rect((MAP_WIDTH_IN_TILES - 1) * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-
-    tiles.append((left_rect, -999))   # -999 is just a dummy ID
-    tiles.append((right_rect, -999))  # you can also assign a real texture if you want
-
-
-
-# --- BUILD DECORATION TILES (no collision) ---
+# --- BUILD DECORATION TILE DATA ONLY (don't draw yet) ---
 decoration_tiles = []
 for row_index, row in enumerate(decoration_map):
     for col_index, tile_id in enumerate(row):
@@ -147,14 +127,50 @@ for row_index, row in enumerate(decoration_map):
             tile_rect = pygame.Rect(col_index * TILE_SIZE, row_index * TILE_SIZE, TILE_SIZE, TILE_SIZE)
             decoration_tiles.append((tile_rect, tile_id))
 
+# --- BUILD TUTORIAL DECORATION TILE DATA ONLY ---
+tutorial_deco_tiles = []
+for row_index, row in enumerate(tutorial_map):
+    for col_index, tile_id in enumerate(row):
+        if tile_id != -1:
+            tile_rect = pygame.Rect(col_index * TILE_SIZE, row_index * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+            tutorial_deco_tiles.append((tile_rect, tile_id))
+
+# Add map borders
+for row in range(MAP_HEIGHT_IN_TILES):
+    left_rect = pygame.Rect(0, row * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+    right_rect = pygame.Rect((MAP_WIDTH_IN_TILES - 1) * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+    tiles.append((left_rect, -999))
+    tiles.append((right_rect, -999))
+
+
+# --- BUILD DECORATION TILE DATA ONLY (don't draw yet) ---
+decoration_tiles = []
+for row_index, row in enumerate(decoration_map):
+    for col_index, tile_id in enumerate(row):
+        if tile_id != -1:
+            tile_rect = pygame.Rect(col_index * TILE_SIZE, row_index * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+            decoration_tiles.append((tile_rect, tile_id))
+
+# --- BUILD TUTORIAL DECORATION TILES (no collision) ---
+tutorial_deco_tiles = []
+for row_index, row in enumerate(tutorial_map):
+    for col_index, tile_id in enumerate(row):
+        if tile_id != -1:
+            tile_rect = pygame.Rect(col_index * TILE_SIZE, row_index * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+            tutorial_deco_tiles.append((tile_rect, tile_id))
+
 # --- CHECKPOINT CLASS ---
 class Checkpoint:
     def __init__(self, x, y):
-        self.rect = pygame.Rect(x, y, 32, 32)
+        self.rect = pygame.Rect(x, y, 64, 64)
         self.activated = False
-        self.frames = [
+        self.frames_red = [
             pygame.image.load(f"checkpoint_{i}.png").convert_alpha()
-            for i in range(5)  # now 6 frames
+            for i in range(6)
+        ]
+        self.frames_green = [
+            pygame.image.load(f"checkpoint_green_{i}.png").convert_alpha()
+            for i in range(6)
         ]
         self.frame_index = 0
         self.animation_timer = 0
@@ -166,7 +182,7 @@ class Checkpoint:
         self.animation_timer += clock.get_time()
         if self.animation_timer >= self.frame_duration:
             self.animation_timer = 0
-            self.frame_index = (self.frame_index + 1) % len(self.frames)
+            self.frame_index = (self.frame_index + 1) % 6
 
         if self.display_message:
             self.message_timer -= clock.get_time()
@@ -174,7 +190,8 @@ class Checkpoint:
                 self.display_message = False
 
     def draw(self, screen, camera_offset):
-        frame = self.frames[self.frame_index]
+        frames = self.frames_green if self.activated else self.frames_red
+        frame = frames[self.frame_index]
         screen.blit(frame, (self.rect.x - camera_offset[0], self.rect.y - camera_offset[1]))
 
         if self.display_message:
@@ -182,6 +199,7 @@ class Checkpoint:
             message = font.render("Your Progress Has Been Saved", True, (0, 255, 0))
             msg_rect = message.get_rect(center=(WIDTH // 2, 40))
             screen.blit(message, msg_rect)
+
 
 # --- PLAYER CLASS ---
 class Player:
@@ -467,7 +485,7 @@ while running:
                     kill_count += 1
                     player.jumps_remaining = player.max_jumps  # <-- Regain double jumps
                 else:
-                    player.rect.x, player.rect.y = player_start
+                    player.rect.x, player.rect.y = current_checkpoint
                     player.vel_y = 0
                     player.jumps_remaining = player.max_jumps
 
@@ -476,14 +494,43 @@ while running:
     camera_x = max(0, camera_x)
     camera_y = max(0, camera_y)
     camera_offset = (camera_x, camera_y)
+    
+    for row_index, row in enumerate(tutorial_map):
+        for col_index, tile_id in enumerate(row):
+            if tile_id != -1:
+                tile_rect = pygame.Rect(col_index * TILE_SIZE, row_index * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+                texture = get_tile_surface(tile_id, tutorial_tileset)
+                if texture:
+                    screen.blit(texture, (tile_rect.x - camera_offset[0], tile_rect.y - camera_offset[1]))
 
+
+    # Draw main decorations
     for deco_rect, deco_id in decoration_tiles:
-        texture = get_tile_surface(deco_id)
+        texture = get_tile_surface(deco_id, tileset_image)
+
         if texture:
             screen.blit(texture, (deco_rect.x - camera_offset[0], deco_rect.y - camera_offset[1]))
 
+    # Draw tutorial decorations
+    for deco_rect, deco_id in tutorial_deco_tiles:
+        texture = get_tile_surface(deco_id, tutorial_tileset)
+        if texture:
+            screen.blit(texture, (deco_rect.x - camera_offset[0], deco_rect.y - camera_offset[1]))
+
+            
+    # Draw decorations from tutorial tileset
+    for row_index, row in enumerate(tutorial_map):
+        for col_index, tile_id in enumerate(row):
+            if tile_id != -1:
+                tile_rect = pygame.Rect(col_index * TILE_SIZE, row_index * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+                texture = get_tile_surface(tile_id, tutorial_tileset)
+                if texture:
+                    screen.blit(texture, (tile_rect.x - camera_offset[0], tile_rect.y - camera_offset[1]))
+
+
     for tile_rect, tile_id in tiles:
-        texture = get_tile_surface(tile_id)
+        texture = get_tile_surface(tile_id, tileset_image)
+
         if texture:
             screen.blit(texture, (tile_rect.x - camera_offset[0], tile_rect.y - camera_offset[1]))
         if DEBUG_MODE:
