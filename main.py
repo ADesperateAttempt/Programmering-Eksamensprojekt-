@@ -56,6 +56,18 @@ confirm_font = pygame.font.Font("Und_Font_Short.ttf", 20)
 big_font = pygame.font.Font("Und_Font_Short.ttf", 72)
 small_font = pygame.font.Font("Und_Font_Short.ttf", 28)
 
+# Pause Menu State
+paused = False
+pause_options = ["Resume", "Settings", "Main Menu"]
+pause_index = 0
+confirm_main_menu = False
+
+# Settings Menu State
+settings_open = False
+settings_options = ["Return", "Save", "DEBUG"]
+settings_index = 0
+
+
 # Game State Variables
 def reset_full_game_state():
     global player, enemies, checkpoints, current_checkpoint
@@ -75,6 +87,7 @@ def reset_full_game_state():
     show_flicker = True
     game_active = False
     game_over_selection = 0
+    DEBUG_MODE = False
 
     current_checkpoint = player_start
     player = Player(*player_start)
@@ -132,7 +145,7 @@ for row in range(MAP_HEIGHT_IN_TILES):
 checkpoints = []
 enemies = []
 
-# Classes
+### Define Game Variables ###
 def main_menu():
     reset_full_game_state()
     global game_active
@@ -734,13 +747,15 @@ while running:
                     if game_over_selection == 0:
                         # Continue game
                         reset_full_game_state()
+                        DEBUG_MODE = False
                     elif game_over_selection == 1:
                         if not confirm_quit:
                             confirm_quit = True
                         else:
                             reset_full_game_state()
                             main_menu()
-
+                            DEBUG_MODE = False
+                            
     pygame.display.flip()
 
 pygame.quit()
