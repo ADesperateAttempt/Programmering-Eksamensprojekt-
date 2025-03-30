@@ -58,7 +58,7 @@ small_font = pygame.font.Font("Und_Font_Short.ttf", 28)
 
 # Pause Menu State
 paused = False
-pause_options = ["Resume", "Settings", "Main Menu"]
+pause_options = ["Resume","Restart", "Settings", "Main Menu"]
 pause_index = 0
 confirm_main_menu = False
 
@@ -73,7 +73,7 @@ def reset_full_game_state():
     global player, enemies, checkpoints, current_checkpoint
     global player_lives, kill_count, paused, confirm_main_menu
     global death_state, show_game_over, confirm_quit, game_active
-    global flicker_timer, show_flicker, game_over_selection, settings_open
+    global flicker_timer, show_flicker, game_over_selection, settings_open, DEBUG_MODE
 
     player_lives = 3
     kill_count = 0
@@ -537,6 +537,8 @@ while running:
                     selected = pause_options[pause_index]
                     if selected == "Resume":
                         paused = False
+                    elif selected == "Restart":
+                        reset_full_game_state()
                     elif selected == "Settings":
                         settings_open = True
                         settings_index = 0
@@ -747,14 +749,12 @@ while running:
                     if game_over_selection == 0:
                         # Continue game
                         reset_full_game_state()
-                        DEBUG_MODE = False
                     elif game_over_selection == 1:
                         if not confirm_quit:
                             confirm_quit = True
                         else:
                             reset_full_game_state()
                             main_menu()
-                            DEBUG_MODE = False
                             
     pygame.display.flip()
 
