@@ -296,11 +296,12 @@ class Player:
         self.jumps_remaining = self.max_jumps
 
         # Load animation frames
-        walk1 = pygame.image.load("pixil-frame-1.png").convert_alpha()
-        walk2 = pygame.image.load("pixil-frame-2.png").convert_alpha()
-        walk3 = pygame.image.load("pixil-frame-3.png").convert_alpha()
+        walk1 = pygame.image.load("player_0.png").convert_alpha()
+        walk2 = pygame.image.load("player_1.png").convert_alpha()
+        walk3 = pygame.image.load("player_2.png").convert_alpha()
+        walk4 = pygame.image.load("player_3.png").convert_alpha()
 
-        self.walk_right = [walk1, walk2, walk3, walk2]
+        self.walk_right = [walk1, walk2, walk3, walk4, walk3, walk2]
         self.walk_left = [pygame.transform.flip(f, True, False) for f in self.walk_right]
 
         self.current_frame = 0
