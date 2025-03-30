@@ -91,6 +91,7 @@ def reset_full_game_state():
 
     current_checkpoint = player_start
     player = Player(*player_start)
+    player.input_blocked_until = pygame.time.get_ticks() + 500
     enemies = [Enemy(x * TILE_SIZE, y * TILE_SIZE, (start * TILE_SIZE, end * TILE_SIZE)) for x, y, start, end in enemy_data]
     checkpoints = [Checkpoint(x, y) for x, y in checkpoint_positions]
 
@@ -277,6 +278,8 @@ class Player:
         self.jump_pressed = False
         self.coyote_time = 75 # milliseconds of coyote time
         self.coyote_timer = 0
+        self.input_blocked_until = 0  # Default value
+
 
         self.dash_power = 12            # speed of dash
         self.dash_duration = 200        # ms dash lasts
@@ -568,7 +571,8 @@ while running:
                 fade_start = pygame.time.get_ticks()
 
         else:
-            player.move(keys)
+            if pygame.time.get_ticks() >= player.input_blocked_until:
+                player.move(keys)
             player.update()
             for enemy in enemies:
                 enemy.update()
