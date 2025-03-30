@@ -23,29 +23,66 @@ clock = pygame.time.Clock()
 tileset_image = pygame.image.load("tilemap.png").convert_alpha()
 tutorial_tileset = pygame.image.load("ad-tutorial.png").convert_alpha()
 
-DEBUG_MODE = False
+DEBUG_MODE = False  # Set to True for debugging
 
-# Font for pause menu
+# Load heart images
+heart_images = [
+    pygame.image.load("heart_0.png").convert_alpha(),
+    pygame.image.load("heart_1.png").convert_alpha(),
+    pygame.image.load("heart_2.png").convert_alpha(),
+    pygame.image.load("heart_3.png").convert_alpha()
+]
+
+# --- PLAYER START LOCATION (x,y) ---
+player_start = (32, 288)
+
+# --- CHECKPOINT POSITIONS ---
+checkpoint_positions = [
+    (1950,416)                  # Checkpoint position (x, y)
+]
+
+# --- ENEMY SPAWN SETUP ---
+enemy_data = [
+    (6, 8.65, 6, 11),
+    (37, 10.65, 37, 41),
+    (13, 6.65, 13, 16),
+    (30, 6.65, 30, 35),
+    (55, 13.65, 55, 60),
+]
+
+# Font Setup
 pause_font = pygame.font.Font("Und_Font_Short.ttf", 36)
 confirm_font = pygame.font.Font("Und_Font_Short.ttf", 20)
+big_font = pygame.font.Font("Und_Font_Short.ttf", 72)
+small_font = pygame.font.Font("Und_Font_Short.ttf", 28)
 
-# Pause state
-paused = False
-pause_options = ["Resume", "Settings", "Main Menu"]
-pause_index = 0
-confirm_main_menu = False
-settings_open = False
-settings_options = ["Return", "Save", "DEBUG"]
-settings_index = 0
+# Game State Variables
+def reset_full_game_state():
+    global player, enemies, checkpoints, current_checkpoint
+    global player_lives, kill_count, paused, confirm_main_menu
+    global death_state, show_game_over, confirm_quit, game_active
+    global flicker_timer, show_flicker, game_over_selection, settings_open
 
-# --- GLOBAL GAME STATE ---
-player_lives = 3
-death_timer = 0
-death_state = False
-show_game_over = False
-flicker_timer = 0
-show_flicker = True
+    player_lives = 3
+    kill_count = 0
+    paused = False
+    settings_open = False 
+    confirm_main_menu = False
+    death_state = False
+    show_game_over = False
+    confirm_quit = False
+    flicker_timer = 0
+    show_flicker = True
+    game_active = False
+    game_over_selection = 0
 
+    current_checkpoint = player_start
+    player = Player(*player_start)
+    enemies = [Enemy(x * TILE_SIZE, y * TILE_SIZE, (start * TILE_SIZE, end * TILE_SIZE)) for x, y, start, end in enemy_data]
+    checkpoints = [Checkpoint(x, y) for x, y in checkpoint_positions]
+
+
+# Tile Map Loaders
 def get_tile_surface(tile_id, tileset):
     try:
         tile_id = int(tile_id)
@@ -66,105 +103,66 @@ def load_tile_map(csv_path):
     with open(csv_path, newline='') as csvfile:
         reader = csv.reader(csvfile)
         for row in reader:
-            tile_row = []
-            for cell in row:
-                try:
-                    cell = cell.strip()
-                    tile_row.append(int(cell))
-                except:
-                    tile_row.append(-1)
+            tile_row = [int(cell.strip()) if cell.strip().isdigit() else -1 for cell in row]
             tile_map.append(tile_row)
     return tile_map
 
-def main_menu():
-    global death_state, show_game_over, player_lives, kill_count, paused, confirm_main_menu
-
-    font_path = "Und_Font_Short.ttf"
-    font_path2 = "Und_Font_Long.ttf"
-    try:
-        title_font = pygame.font.Font(font_path, 72)
-        instruction_font = pygame.font.Font(font_path2, 28)
-    except:
-        title_font = pygame.font.SysFont(None, 72)
-        instruction_font = pygame.font.SysFont(None, 28)
-
-    menu_running = True
-
-    while menu_running:
-        screen.fill((0, 0, 0))
-
-        title_text = title_font.render("Space Type Shi", True, (255, 255, 255))
-        title_rect = title_text.get_rect(center=(WIDTH // 2, HEIGHT // 3))
-        screen.blit(title_text, title_rect)
-
-        instruction_text = instruction_font.render("Press Enter To Start", True, (255, 255, 255))
-        instruction_rect = instruction_text.get_rect(center=(WIDTH // 2, HEIGHT - 80))
-        screen.blit(instruction_text, instruction_rect)
-
-        # Event handling
-        for event in pygame.event.get():
-            if event.type == QUIT:
-                pygame.quit()
-                exit()
-            elif event.type == KEYDOWN and event.key == K_RETURN:
-                if death_state and show_game_over:
-                    if event.key == K_LEFT:
-                        player_lives = 3
-                        kill_count = 0
-                        show_game_over = False
-                        death_state = False
-                        for enemy in enemies:
-                            enemy.dead = False
-                        player.rect.x, player.rect.y = player_start
-                        player.vel_y = 0
-                        player.jumps_remaining = player.max_jumps
-                    elif event.key == K_RIGHT:
-                        main_menu()
-                        player.rect.x, player.rect.y = player_start
-                        kill_count = 0
-                        player_lives = 3
-                        for enemy in enemies:
-                            enemy.dead = False
-                        paused = False
-                        confirm_main_menu = False
-                        death_state = False
-                        show_game_over = False
-
-
-                menu_running = False
-
-        pygame.display.flip()
-        clock.tick(60)
-        
-def reset_game_state():
-    global kill_count, enemies, player, current_checkpoint
-    kill_count = 0
-    enemies = [
-        Enemy(x * TILE_SIZE, y * TILE_SIZE, (start * TILE_SIZE, end * TILE_SIZE))
-        for x, y, start, end in enemy_data
-    ]
-    player = Player(*player_start)
-    current_checkpoint = player_start
-
-
-# --- LOAD MAP DATA ---
+# Load maps
 tile_map = load_tile_map("New Long Map 2_Main_Structure.csv")
 decoration_map = load_tile_map("New Long Map 2_Decorations.csv")
 tutorial_map = load_tile_map("TutorialDecorations_2.csv")
 MAP_WIDTH_IN_TILES = len(tile_map[0])
 MAP_HEIGHT_IN_TILES = len(tile_map)
 
-# --- LOAD HEART IMAGES ---
-heart_images = [
-    pygame.image.load("heart_0.png").convert_alpha(),
-    pygame.image.load("heart_1.png").convert_alpha(),
-    pygame.image.load("heart_2.png").convert_alpha(),
-    pygame.image.load("heart_3.png").convert_alpha()
-]
+# Build tiles
+tiles = []
+for row_index, row in enumerate(tile_map):
+    for col_index, tile_id in enumerate(row):
+        if tile_id != -1:
+            tile_rect = pygame.Rect(col_index * TILE_SIZE, row_index * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+            tiles.append((tile_rect, tile_id))
 
+for row in range(MAP_HEIGHT_IN_TILES):
+    left_rect = pygame.Rect(0, row * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+    right_rect = pygame.Rect((MAP_WIDTH_IN_TILES - 1) * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+    tiles.append((left_rect, -999))
+    tiles.append((right_rect, -999))
 
-# --- PLAYER START LOCATION (x,y) ---
-player_start = (32,288)
+# Placeholder lists (will be set during reset)
+checkpoints = []
+enemies = []
+
+# Classes
+def main_menu():
+    reset_full_game_state()
+    global game_active
+    font_path2 = "Und_Font_Long.ttf"
+    try:
+        title_font = pygame.font.Font("Und_Font_Short.ttf", 72)
+        instruction_font = pygame.font.Font(font_path2, 28)
+    except:
+        title_font = pygame.font.SysFont(None, 72)
+        instruction_font = pygame.font.SysFont(None, 28)
+
+    menu_running = True
+    while menu_running:
+        screen.fill((0, 0, 0))
+        screen.blit(title_font.render("Space Type Shi", True, (255, 255, 255)), (WIDTH//2 - 200, HEIGHT//3))
+        screen.blit(instruction_font.render("Press Enter To Start", True, (255, 255, 255)), (WIDTH//2 - 140, HEIGHT - 80))
+        screen.blit(instruction_font.render("Press ESC To Quit", True, (255, 255, 255)), (WIDTH//2 - 130, HEIGHT - 40))
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                pygame.quit()
+                exit()
+            elif event.type == KEYDOWN:
+                if event.key == K_RETURN:
+                    menu_running = False
+                    game_active = True
+                elif event.key == K_ESCAPE:
+                    pygame.quit()
+                    exit()
+        pygame.display.flip()
+        clock.tick(60)
 
 # --- BUILD COLLISION TILES ---
 tiles = []
@@ -324,6 +322,7 @@ class Player:
                 self.dash_cooldown_timer = self.dash_cooldown
 
     def update(self):
+        global player_lives, death_state, death_timer, current_checkpoint
 
         dt = clock.get_time()  # ms since last frame
 
@@ -399,12 +398,16 @@ class Player:
                 elif self.vel_y < 0:
                     self.rect.top = tile.bottom
                     self.vel_y = 0
+        if player.rect.top > HEIGHT:
+            player_lives -= 1
+            if player_lives <= 0:
+                death_state = True
+                death_timer = pygame.time.get_ticks()
+            else:
+                player.rect.x, player.rect.y = current_checkpoint
+                player.vel_y = 0
+                player.jumps_remaining = player.max_jumps
 
-        # Respawn if falling off screen
-        if self.rect.top > HEIGHT:
-            self.rect.x, self.rect.y = current_checkpoint
-            self.vel_y = 0
-            self.jumps_remaining = self.max_jumps
 
         # Animation
         if self.vel_x != 0:
@@ -475,20 +478,12 @@ enemies = [
     Enemy(x * TILE_SIZE, y * TILE_SIZE, (start * TILE_SIZE, end * TILE_SIZE))
     for x, y, start, end in enemy_data
 ]
-# --- Init player ---
-player = Player(*player_start)
+
+current_checkpoint = player_start  # default spawn point
 
 main_menu()
 
-# Create checkpoints at specific manual positions
-checkpoint_positions = [
-    (5 * TILE_SIZE, 5 * TILE_SIZE),
-    (20 * TILE_SIZE, 10 * TILE_SIZE),
-    (35 * TILE_SIZE, 12 * TILE_SIZE)
-]
-
-checkpoints = [Checkpoint(1950 , 416) for x, y in checkpoint_positions]
-current_checkpoint = player_start  # default spawn point
+reset_full_game_state()
 
 # --- GAME LOOP ---
 running = True
@@ -534,13 +529,8 @@ while running:
                         settings_index = 0
                     elif selected == "Main Menu":
                         if confirm_main_menu:
+                            reset_full_game_state()
                             main_menu()
-                            player.rect.x, player.rect.y = player_start
-                            kill_count = 0
-                            for enemy in enemies:
-                                enemy.dead = False
-                            paused = False
-                            confirm_main_menu = False
                         else:
                             confirm_main_menu = True
 
@@ -655,9 +645,9 @@ while running:
     else:
         # Player is dead, flicker sad heart before broken heart
         elapsed = pygame.time.get_ticks() - death_timer
-        if elapsed < 4000:
+        if elapsed < 3000:
             flicker_timer += dt
-            if flicker_timer >= 666:
+            if flicker_timer >= 425:
                 flicker_timer = 0
                 show_flicker = not show_flicker
             if show_flicker:
@@ -704,32 +694,52 @@ while running:
                 screen.blit(msg, msg.get_rect(center=(WIDTH // 2, HEIGHT // 2 + len(pause_options) * 60)))
                 
     if show_game_over:
-        fade_elapsed = pygame.time.get_ticks() - fade_start
-        alpha = min(255, int((fade_elapsed / 2000) * 255))
+                fade_elapsed = pygame.time.get_ticks() - fade_start
+                alpha = min(255, int((fade_elapsed / 2000) * 255))
 
-        black_overlay = pygame.Surface((WIDTH, HEIGHT))
-        black_overlay.fill((0, 0, 0))
-        black_overlay.set_alpha(alpha)
-        screen.blit(black_overlay, (0, 0))
+                black_overlay = pygame.Surface((WIDTH, HEIGHT))
+                black_overlay.fill((0, 0, 0))
+                black_overlay.set_alpha(alpha)
+                screen.blit(black_overlay, (0, 0))
 
-        if fade_elapsed > 2000:
-            big_font = pygame.font.Font("Und_Font_Short.ttf", 72)
-            small_font = pygame.font.Font("Und_Font_Short.ttf", 28)
+                if fade_elapsed > 2000:
+                    died_text = big_font.render("You Died", True, (255, 0, 0))
+                    try_again = small_font.render("Continue or Quit?", True, (255, 255, 255))
 
-            died_text = big_font.render("You Died", True, (255, 0, 0))
-            try_again = small_font.render("Try Again?", True, (255, 255, 255))
-            yes = small_font.render("Yes", True, (255, 255, 255))
-            no = small_font.render("No", True, (255, 255, 255))
+                    screen.blit(died_text, died_text.get_rect(center=(WIDTH // 2, HEIGHT // 3)))
+                    screen.blit(try_again, try_again.get_rect(center=(WIDTH // 2, HEIGHT // 2)))
 
-            screen.blit(died_text, died_text.get_rect(center=(WIDTH // 2, HEIGHT // 3)))
-            screen.blit(try_again, try_again.get_rect(center=(WIDTH // 2, HEIGHT // 2)))
-            screen.blit(yes, yes.get_rect(center=(WIDTH // 2 - 100, HEIGHT // 2 + 60)))
-            screen.blit(no, no.get_rect(center=(WIDTH // 2 + 100, HEIGHT // 2 + 60)))
+                    options = ["Continue", "Quit"]
+                    for i, option in enumerate(options):
+                        color = (0, 255, 0) if i == 0 else (255, 0, 0)
+                        if game_over_selection == i:
+                            rendered = small_font.render(option, True, color)
+                        else:
+                            rendered = small_font.render(option, True, (255, 255, 255))
+                        screen.blit(rendered, rendered.get_rect(center=(WIDTH // 2 - 100 + 200 * i, HEIGHT // 2 + 60)))
 
-            # Display quit warning (like main menu)
-            warning = small_font.render("If you quit now, any progress will be lost.", True, (255, 100, 100))
-            screen.blit(warning, warning.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 120)))
+                    if confirm_quit and game_over_selection == 1:
+                        warning = small_font.render("If you quit now, any progress will be lost.", True, (255, 100, 100))
+                        screen.blit(warning, warning.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 120)))
 
+# Input handling during game over
+    if show_game_over and fade_elapsed > 2000:
+        for event in pygame.event.get():
+            if event.type == KEYDOWN:
+                if event.key in [K_a, K_LEFT]:
+                    game_over_selection = (game_over_selection - 1) % 2
+                elif event.key in [K_d, K_RIGHT]:
+                    game_over_selection = (game_over_selection + 1) % 2
+                elif event.key in [K_RETURN, K_SPACE]:
+                    if game_over_selection == 0:
+                        # Continue game
+                        reset_full_game_state()
+                    elif game_over_selection == 1:
+                        if not confirm_quit:
+                            confirm_quit = True
+                        else:
+                            reset_full_game_state()
+                            main_menu()
 
     pygame.display.flip()
 
