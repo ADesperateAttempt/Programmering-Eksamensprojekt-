@@ -38,6 +38,14 @@ settings_open = False
 settings_options = ["Return", "Save", "DEBUG"]
 settings_index = 0
 
+# --- GLOBAL GAME STATE ---
+player_lives = 3
+death_timer = 0
+death_state = False
+show_game_over = False
+flicker_timer = 0
+show_flicker = True
+
 def get_tile_surface(tile_id, tileset):
     try:
         tile_id = int(tile_id)
@@ -69,6 +77,8 @@ def load_tile_map(csv_path):
     return tile_map
 
 def main_menu():
+    global death_state, show_game_over, player_lives, kill_count, paused, confirm_main_menu
+
     font_path = "Und_Font_Short.ttf"
     font_path2 = "Und_Font_Long.ttf"
     try:
@@ -91,11 +101,36 @@ def main_menu():
         instruction_rect = instruction_text.get_rect(center=(WIDTH // 2, HEIGHT - 80))
         screen.blit(instruction_text, instruction_rect)
 
+        # Event handling
         for event in pygame.event.get():
             if event.type == QUIT:
                 pygame.quit()
                 exit()
             elif event.type == KEYDOWN and event.key == K_RETURN:
+                if death_state and show_game_over:
+                    if event.key == K_LEFT:
+                        player_lives = 3
+                        kill_count = 0
+                        show_game_over = False
+                        death_state = False
+                        for enemy in enemies:
+                            enemy.dead = False
+                        player.rect.x, player.rect.y = player_start
+                        player.vel_y = 0
+                        player.jumps_remaining = player.max_jumps
+                    elif event.key == K_RIGHT:
+                        main_menu()
+                        player.rect.x, player.rect.y = player_start
+                        kill_count = 0
+                        player_lives = 3
+                        for enemy in enemies:
+                            enemy.dead = False
+                        paused = False
+                        confirm_main_menu = False
+                        death_state = False
+                        show_game_over = False
+
+
                 menu_running = False
 
         pygame.display.flip()
@@ -118,6 +153,15 @@ decoration_map = load_tile_map("New Long Map 2_Decorations.csv")
 tutorial_map = load_tile_map("TutorialDecorations_2.csv")
 MAP_WIDTH_IN_TILES = len(tile_map[0])
 MAP_HEIGHT_IN_TILES = len(tile_map)
+
+# --- LOAD HEART IMAGES ---
+heart_images = [
+    pygame.image.load("heart_0.png").convert_alpha(),
+    pygame.image.load("heart_1.png").convert_alpha(),
+    pygame.image.load("heart_2.png").convert_alpha(),
+    pygame.image.load("heart_3.png").convert_alpha()
+]
+
 
 # --- PLAYER START LOCATION (x,y) ---
 player_start = (32,288)
@@ -231,6 +275,7 @@ class Player:
         self.dash_cooldown_timer = 0
 
         self.last_debug_time = 0
+        
 
         # Double jump
         self.max_jumps = 2
@@ -381,6 +426,7 @@ class Player:
 # Kill counter
 kill_count = 0
 
+
 # --- ENEMY CLASS ---
 class Enemy:
     def __init__(self, x, y, patrol_range):
@@ -508,23 +554,46 @@ while running:
                 checkpoint.display_message = True
                 checkpoint.message_timer = 2000  # ms
 
-        player.move(keys)
-        player.update()
-        for enemy in enemies:
-            enemy.update()
-            if player.rect.colliderect(enemy.rect) and not enemy.dead:
-                if player.vel_y > 0:
-                    enemy.dead = True
-                    player.vel_y = JUMP_STRENGTH * 0.7
-                    kill_count += 1
-                    player.jumps_remaining = player.max_jumps  # <-- Regain double jumps
-                else:
-                    if current_checkpoint == player_start:
-                        reset_game_state()
+        if death_state:
+            now = pygame.time.get_ticks()
+            elapsed = now - death_timer
+
+            if elapsed >= 4000 and not show_game_over:
+                show_game_over = True
+                fade_start = pygame.time.get_ticks()
+
+        else:
+            player.move(keys)
+            player.update()
+            for enemy in enemies:
+                enemy.update()
+                if player.rect.colliderect(enemy.rect) and not enemy.dead:
+                    if player.vel_y > 0:
+                        enemy.dead = True
+                        player.vel_y = JUMP_STRENGTH * 0.7
+                        kill_count += 1
+                        player.jumps_remaining = player.max_jumps  # <-- Regain double jumps
                     else:
-                        player.rect.x, player.rect.y = current_checkpoint
-                        player.vel_y = 0
-                        player.jumps_remaining = player.max_jumps
+                        if current_checkpoint == player_start:
+                            player_lives -= 1
+                            if player_lives <= 0:
+                                death_state = True
+                                death_timer = pygame.time.get_ticks()
+                            else:
+                                player.rect.x, player.rect.y = current_checkpoint
+                                player.vel_y = 0
+                                player.jumps_remaining = player.max_jumps
+
+                        else:
+                            player_lives -= 1
+                            if player_lives <= 0:
+                                death_state = True
+                                death_timer = pygame.time.get_ticks()
+                            else:
+                                player.rect.x, player.rect.y = current_checkpoint
+                                player.vel_y = 0
+                                player.jumps_remaining = player.max_jumps
+
 
 
     camera_x = player.rect.centerx - WIDTH // 2
@@ -576,6 +645,34 @@ while running:
 
     font = pygame.font.SysFont(None, 28)
     text = font.render(f"Kills: {kill_count}", True, (0, 0, 0))
+    
+    if not death_state:
+        heart_index = max(0, 3 - player_lives)
+        heart_img = heart_images[heart_index]
+        screen.blit(heart_img, (WIDTH - 42, HEIGHT - 42))
+        lives_text = font.render(f"{player_lives}/3", True, (0, 0, 0))
+        screen.blit(lives_text, (WIDTH - 90, HEIGHT - 35))
+    else:
+        # Player is dead, flicker sad heart before broken heart
+        elapsed = pygame.time.get_ticks() - death_timer
+        if elapsed < 4000:
+            flicker_timer += dt
+            if flicker_timer >= 666:
+                flicker_timer = 0
+                show_flicker = not show_flicker
+            if show_flicker:
+                heart_img = heart_images[2]  # sad face heart (heart_2.png)
+                screen.blit(heart_img, (WIDTH - 42, HEIGHT - 42))
+                lives_text = font.render("0/3", True, (0, 0, 0))
+                screen.blit(lives_text, (WIDTH - 90, HEIGHT - 35))
+        else:
+            heart_img = heart_images[3]  # broken heart (heart_3.png)
+            screen.blit(heart_img, (WIDTH - 42, HEIGHT - 42))
+            lives_text = font.render("0/3", True, (0, 0, 0))
+            screen.blit(lives_text, (WIDTH - 90, HEIGHT - 35))
+
+
+
     screen.blit(text, (10, 10))
 
     if paused:
@@ -605,6 +702,34 @@ while running:
                 confirm_font = pygame.font.Font("Und_Font_Short.ttf", 20)
                 msg = confirm_font.render("Press Enter again to return to menu", True, (255, 100, 100))
                 screen.blit(msg, msg.get_rect(center=(WIDTH // 2, HEIGHT // 2 + len(pause_options) * 60)))
+                
+    if show_game_over:
+        fade_elapsed = pygame.time.get_ticks() - fade_start
+        alpha = min(255, int((fade_elapsed / 2000) * 255))
+
+        black_overlay = pygame.Surface((WIDTH, HEIGHT))
+        black_overlay.fill((0, 0, 0))
+        black_overlay.set_alpha(alpha)
+        screen.blit(black_overlay, (0, 0))
+
+        if fade_elapsed > 2000:
+            big_font = pygame.font.Font("Und_Font_Short.ttf", 72)
+            small_font = pygame.font.Font("Und_Font_Short.ttf", 28)
+
+            died_text = big_font.render("You Died", True, (255, 0, 0))
+            try_again = small_font.render("Try Again?", True, (255, 255, 255))
+            yes = small_font.render("Yes", True, (255, 255, 255))
+            no = small_font.render("No", True, (255, 255, 255))
+
+            screen.blit(died_text, died_text.get_rect(center=(WIDTH // 2, HEIGHT // 3)))
+            screen.blit(try_again, try_again.get_rect(center=(WIDTH // 2, HEIGHT // 2)))
+            screen.blit(yes, yes.get_rect(center=(WIDTH // 2 - 100, HEIGHT // 2 + 60)))
+            screen.blit(no, no.get_rect(center=(WIDTH // 2 + 100, HEIGHT // 2 + 60)))
+
+            # Display quit warning (like main menu)
+            warning = small_font.render("If you quit now, any progress will be lost.", True, (255, 100, 100))
+            screen.blit(warning, warning.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 120)))
+
 
     pygame.display.flip()
 
