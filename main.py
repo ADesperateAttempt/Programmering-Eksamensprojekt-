@@ -104,7 +104,7 @@ def main_menu():
 # --- LOAD MAP DATA ---
 tile_map = load_tile_map("New Long Map 2_Main_Structure.csv")
 decoration_map = load_tile_map("New Long Map 2_Decorations.csv")
-tutorial_map = load_tile_map("TutorialDecorations.csv")
+tutorial_map = load_tile_map("TutorialDecorations_2.csv")
 MAP_WIDTH_IN_TILES = len(tile_map[0])
 MAP_HEIGHT_IN_TILES = len(tile_map)
 
@@ -119,7 +119,7 @@ for row_index, row in enumerate(tile_map):
             tile_rect = pygame.Rect(col_index * TILE_SIZE, row_index * TILE_SIZE, TILE_SIZE, TILE_SIZE)
             tiles.append((tile_rect, tile_id))
 
-# --- BUILD DECORATION TILE DATA ONLY (don't draw yet) ---
+# --- BUILD DECORATION TILE DATA ONLY ---
 decoration_tiles = []
 for row_index, row in enumerate(decoration_map):
     for col_index, tile_id in enumerate(row):
@@ -213,7 +213,7 @@ class Player:
         self.coyote_timer = 0
 
         self.dash_power = 12         # speed of dash
-        self.dash_duration = 135     # ms dash lasts
+        self.dash_duration = 160     # ms dash lasts
         self.dash_cooldown = 1000   # ms between dashes
         self.dashing = False
         self.dash_timer = 0
@@ -494,15 +494,6 @@ while running:
     camera_x = max(0, camera_x)
     camera_y = max(0, camera_y)
     camera_offset = (camera_x, camera_y)
-    
-    for row_index, row in enumerate(tutorial_map):
-        for col_index, tile_id in enumerate(row):
-            if tile_id != -1:
-                tile_rect = pygame.Rect(col_index * TILE_SIZE, row_index * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-                texture = get_tile_surface(tile_id, tutorial_tileset)
-                if texture:
-                    screen.blit(texture, (tile_rect.x - camera_offset[0], tile_rect.y - camera_offset[1]))
-
 
     # Draw main decorations
     for deco_rect, deco_id in decoration_tiles:
