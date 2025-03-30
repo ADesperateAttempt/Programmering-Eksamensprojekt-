@@ -100,6 +100,17 @@ def main_menu():
 
         pygame.display.flip()
         clock.tick(60)
+        
+def reset_game_state():
+    global kill_count, enemies, player, current_checkpoint
+    kill_count = 0
+    enemies = [
+        Enemy(x * TILE_SIZE, y * TILE_SIZE, (start * TILE_SIZE, end * TILE_SIZE))
+        for x, y, start, end in enemy_data
+    ]
+    player = Player(*player_start)
+    current_checkpoint = player_start
+
 
 # --- LOAD MAP DATA ---
 tile_map = load_tile_map("New Long Map 2_Main_Structure.csv")
@@ -212,12 +223,14 @@ class Player:
         self.coyote_time = 75 # milliseconds of coyote time
         self.coyote_timer = 0
 
-        self.dash_power = 12         # speed of dash
-        self.dash_duration = 160     # ms dash lasts
-        self.dash_cooldown = 1000   # ms between dashes
+        self.dash_power = 12            # speed of dash
+        self.dash_duration = 200        # ms dash lasts
+        self.dash_cooldown = 1000       # ms between dashes
         self.dashing = False
         self.dash_timer = 0
         self.dash_cooldown_timer = 0
+
+        self.last_debug_time = 0
 
         # Double jump
         self.max_jumps = 2
@@ -279,24 +292,45 @@ class Player:
             if self.dash_timer <= 0:
                 self.dashing = False
 
-        # print(f"vel_y: {self.vel_y}, jumps_left: {self.jumps_remaining}, on_ground: {self.on_ground}")
-        print(player.rect.x, player.rect.y)
+        # And replace your debug print section with this
+        current_time = pygame.time.get_ticks()
+        if current_time - self.last_debug_time > 1000:  # 1000 ms = 1 second
+            print(f"vel_y: {self.vel_y}, jumps_left: {self.jumps_remaining}, on_ground: {self.on_ground}")
+            print(self.rect.x, self.rect.y)
+            self.last_debug_time = current_time
+
         
-        self.vel_y += GRAVITY  # gravity is positive
+        if self.dashing:
+            self.vel_y += GRAVITY * 0.2  # Reduced gravity during dash
+        else:
+            self.vel_y += GRAVITY
+
 
         # Horizontal movement
-        # Horizontal movement
+        
+        # DASHING MOVEMENT WITH COLLISION
         if self.dashing:
             direction = 1 if self.facing_right else -1
-            self.rect.x += direction * self.dash_power
+            dash_step = direction * self.dash_power
+
+            for _ in range(abs(dash_step)):
+                self.rect.x += direction
+                for tile, _ in tiles:
+                    if self.rect.colliderect(tile):
+                        if direction > 0:
+                            self.rect.right = tile.left
+                        else:
+                            self.rect.left = tile.right
+                        self.dashing = False
+                        break
         else:
             self.rect.x += self.vel_x
-        for tile, _ in tiles:
-            if self.rect.colliderect(tile):
-                if self.vel_x > 0:
-                    self.rect.right = tile.left
-                elif self.vel_x < 0:
-                    self.rect.left = tile.right
+            for tile, _ in tiles:
+                if self.rect.colliderect(tile):
+                    if self.vel_x > 0:
+                        self.rect.right = tile.left
+                    elif self.vel_x < 0:
+                        self.rect.left = tile.right
 
         # Vertical movement
         self.rect.y += self.vel_y
@@ -485,9 +519,13 @@ while running:
                     kill_count += 1
                     player.jumps_remaining = player.max_jumps  # <-- Regain double jumps
                 else:
-                    player.rect.x, player.rect.y = current_checkpoint
-                    player.vel_y = 0
-                    player.jumps_remaining = player.max_jumps
+                    if current_checkpoint == player_start:
+                        reset_game_state()
+                    else:
+                        player.rect.x, player.rect.y = current_checkpoint
+                        player.vel_y = 0
+                        player.jumps_remaining = player.max_jumps
+
 
     camera_x = player.rect.centerx - WIDTH // 2
     camera_y = player.rect.centery - HEIGHT // 2
