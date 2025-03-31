@@ -271,7 +271,7 @@ class Checkpoint:
 # --- PLAYER CLASS ---
 class Player:
     def __init__(self, x, y):
-        self.rect = pygame.Rect(x, y, 32, 32)
+        self.rect = pygame.Rect(x, y, 29, 64)
         self.vel_x = 0
         self.vel_y = 0
         self.on_ground = False
@@ -319,24 +319,31 @@ class Player:
             self.vel_x = 6
             self.facing_right = True
 
+        # --- Handle jumping (even during dash, to allow canceling dash) ---
         if keys[K_SPACE]:
             if not self.jump_pressed and self.jumps_remaining > 0:
-                # First jump = full, second = weaker
+                # Cancel dash if active
+                if self.dashing:
+                    self.dashing = False
+                    self.dash_timer = 0
+
                 if self.jumps_remaining == self.max_jumps:
                     self.vel_y = JUMP_STRENGTH
                 else:
                     self.vel_y = JUMP_STRENGTH * 0.6
+
                 self.jumps_remaining -= 1
                 self.jump_pressed = True
         else:
             self.jump_pressed = False
-        
-        # Handle dashing
+
+        # --- Handle dashing ---
         if keys[K_LSHIFT]:
             if not self.dashing and self.dash_cooldown_timer <= 0:
                 self.dashing = True
                 self.dash_timer = self.dash_duration
                 self.dash_cooldown_timer = self.dash_cooldown
+                self.vel_y = 0  # zero vertical movement during dash
 
     def update(self):
         global player_lives, death_state, death_timer, current_checkpoint
@@ -362,7 +369,7 @@ class Player:
 
         
         if self.dashing:
-            self.vel_y += GRAVITY * 0.2  # Reduced gravity during dash
+            self.vel_y += GRAVITY * 0.05  # Reduced gravity during dash
         else:
             self.vel_y += GRAVITY
 
@@ -438,10 +445,16 @@ class Player:
         self.image = self.walk_right[self.current_frame] if self.facing_right else self.walk_left[self.current_frame]
 
     def draw(self, screen, camera_offset):
-        screen.blit(self.image, (self.rect.x - camera_offset[0], self.rect.y - camera_offset[1]))
+        draw_x = self.rect.x - camera_offset[0] - (self.image.get_width() - self.rect.width) // 2
+        draw_y = self.rect.y - camera_offset[1]
+        screen.blit(self.image, (draw_x, draw_y))
 
         if DEBUG_MODE:
-            pygame.draw.rect(screen, (0, 255, 0), (self.rect.x - camera_offset[0], self.rect.y - camera_offset[1], self.rect.width, self.rect.height), 1)
+            pygame.draw.rect(screen, (0, 255, 0), (
+                self.rect.x - camera_offset[0],
+                self.rect.y - camera_offset[1],
+                self.rect.width,
+                self.rect.height), 1)
 
 # Kill counter
 kill_count = 0
