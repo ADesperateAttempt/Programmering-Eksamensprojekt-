@@ -1,0 +1,95 @@
+@startuml
+class Checkpoint {
+    update()
+    draw()
+        rect
+    activated
+    frame_index
+    animation_timer
+    frame_duration
+    display_message
+    message_timer
+    animation_timer
+    display_message
+    __init__()
+}
+class FinishFlag {
+    update()
+    draw()
+        rect
+    frame_index
+    animation_timer
+    frame_duration
+    animation_timer
+    __init__()
+}
+class Player {
+    move()
+    update()
+    draw()
+        rect
+    vel_x
+    vel_y
+    on_ground
+    jump_pressed
+    coyote_time
+    coyote_timer
+    input_blocked_until
+    dash_power
+    dash_duration
+    dash_cooldown
+    dashing
+    dash_timer
+    dash_cooldown_timer
+    last_debug_time
+    max_jumps
+    jumps_remaining
+    current_frame
+    animation_timer
+    frame_duration
+    facing_right
+    image
+    vel_x
+    facing_right
+    vel_x
+    facing_right
+    dashing
+    dash_timer
+    vel_y
+    vel_y
+    jump_pressed
+    jump_pressed
+    dashing
+    dash_timer
+    dash_cooldown_timer
+    vel_y
+    dashing
+    last_debug_time
+    dashing
+    on_ground
+    jumps_remaining
+    vel_y
+    on_ground
+    jumps_remaining
+    coyote_timer
+    vel_y
+    animation_timer
+    current_frame
+    image
+    __init__()
+}
+class Enemy {
+    update()
+    draw()
+        rect
+    direction
+    speed
+    dead
+    patrol_range
+    frame_index
+    animation_timer
+    frame_duration
+    animation_timer
+    __init__()
+}
+@enduml

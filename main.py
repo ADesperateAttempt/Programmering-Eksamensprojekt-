@@ -34,7 +34,7 @@ heart_images = [
 ]
 
 # --- PLAYER START LOCATION (x,y) ---
-player_start = (32, 288)
+player_start = (62, 288)
 
 # --- CHECKPOINT POSITIONS ---
 checkpoint_positions = [
@@ -74,6 +74,11 @@ def reset_full_game_state():
     global player_lives, kill_count, paused, confirm_main_menu
     global death_state, show_game_over, confirm_quit, game_active
     global flicker_timer, show_flicker, game_over_selection, settings_open, DEBUG_MODE
+    global finish_flag, finished_game
+    
+    finish_flag = FinishFlag(3902, 416)  
+    finished_game = False
+
 
     player_lives = 3
     kill_count = 0
@@ -122,8 +127,8 @@ def load_tile_map(csv_path):
     return tile_map
 
 # Load maps
-tile_map = load_tile_map("New Long Map 2_Main_Structure.csv")
-decoration_map = load_tile_map("New Long Map 2_Decorations.csv")
+tile_map = load_tile_map("Finished_Map_Main_Structure.csv")
+decoration_map = load_tile_map("Finished_Map_Decorations.csv")
 tutorial_map = load_tile_map("TutorialDecorations_2.csv")
 MAP_WIDTH_IN_TILES = len(tile_map[0])
 MAP_HEIGHT_IN_TILES = len(tile_map)
@@ -266,6 +271,25 @@ class Checkpoint:
             message = font.render("Your Progress Has Been Saved", True, (0, 255, 0))
             msg_rect = message.get_rect(center=(WIDTH // 2, 40))
             screen.blit(message, msg_rect)
+            
+class FinishFlag:
+    def __init__(self, x, y):
+        self.rect = pygame.Rect(x, y, 64, 64)
+        self.frames = [pygame.image.load(f"finish_flag_{i}.png").convert_alpha() for i in range(6)]
+        self.frame_index = 0
+        self.animation_timer = 0
+        self.frame_duration = 150  # ms
+
+    def update(self):
+        self.animation_timer += clock.get_time()
+        if self.animation_timer >= self.frame_duration:
+            self.animation_timer = 0
+            self.frame_index = (self.frame_index + 1) % len(self.frames)
+
+    def draw(self, screen, camera_offset):
+        frame = self.frames[self.frame_index]
+        screen.blit(frame, (self.rect.x - camera_offset[0], self.rect.y - camera_offset[1]))
+
 
 
 # --- PLAYER CLASS ---
@@ -566,7 +590,8 @@ while running:
                         else:
                             confirm_main_menu = True
 
-    if not paused:
+    if not paused and not finished_game:
+
         # Update checkpoints
         for checkpoint in checkpoints:
             checkpoint.update()
@@ -575,6 +600,12 @@ while running:
                 current_checkpoint = (checkpoint.rect.x, checkpoint.rect.y)
                 checkpoint.display_message = True
                 checkpoint.message_timer = 2000  # ms
+                
+        # Update final flag                
+        finish_flag.update()
+        if player.rect.colliderect(finish_flag.rect):
+            finished_game = True
+
 
         if death_state:
             now = pygame.time.get_ticks()
@@ -665,6 +696,8 @@ while running:
             checkpoint.draw(screen, camera_offset)
 
     player.draw(screen, camera_offset)
+    
+    finish_flag.draw(screen, camera_offset)
 
     font = pygame.font.SysFont(None, 28)
     text = font.render(f"Kills: {kill_count}", True, (0, 0, 0))
@@ -773,6 +806,31 @@ while running:
                         else:
                             reset_full_game_state()
                             main_menu()
+                            
+    if finished_game:
+        overlay = pygame.Surface((WIDTH, HEIGHT))
+        overlay.set_alpha(200)
+        overlay.fill((255, 255, 255))
+        screen.blit(overlay, (0, 0))
+
+        congrats_text = big_font.render("You Win!", True, (0, 128, 0))
+        screen.blit(congrats_text, congrats_text.get_rect(center=(WIDTH // 2, HEIGHT // 3)))
+
+        info_text = small_font.render("Press ENTER to return to menu", True, (0, 0, 0))
+        screen.blit(info_text, info_text.get_rect(center=(WIDTH // 2, HEIGHT // 2)))
+
+        quit_text = small_font.render("Press Q to quit", True, (128, 0, 0))
+        screen.blit(quit_text, quit_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 50)))
+
+        for event in pygame.event.get():
+            if event.type == KEYDOWN:
+                if event.key == K_RETURN:
+                    reset_full_game_state()
+                    main_menu()
+                elif event.key == K_q:
+                    pygame.quit()
+                    exit()
+
                             
     pygame.display.flip()
 
