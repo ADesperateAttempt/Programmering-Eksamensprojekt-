@@ -621,12 +621,12 @@ while running:
             player.update()
             for enemy in enemies:
                 enemy.update()
-                if player.rect.colliderect(enemy.rect) and not enemy.dead:
-                    if player.vel_y > 0:
-                        enemy.dead = True
-                        player.vel_y = JUMP_STRENGTH * 0.7
-                        kill_count += 1
-                        player.jumps_remaining = player.max_jumps  # <-- Regain double jumps
+                if player.rect.colliderect(enemy.rect) and not enemy.dead:          # Check for collision with enemy
+                    if player.vel_y > 0:                                            # Jumping on enemy
+                        enemy.dead = True                                           # Kill enemy
+                        player.vel_y = JUMP_STRENGTH * 0.7                          # Bounce off enemy   
+                        kill_count += 1                                             # Increment kill count
+                        player.jumps_remaining = player.max_jumps                   # Regains double jumps after killing enemy
                     else:
                         if current_checkpoint == player_start:
                             player_lives -= 1
@@ -637,17 +637,6 @@ while running:
                                 player.rect.x, player.rect.y = current_checkpoint
                                 player.vel_y = 0
                                 player.jumps_remaining = player.max_jumps
-
-                        else:
-                            player_lives -= 1
-                            if player_lives <= 0:
-                                death_state = True
-                                death_timer = pygame.time.get_ticks()
-                            else:
-                                player.rect.x, player.rect.y = current_checkpoint
-                                player.vel_y = 0
-                                player.jumps_remaining = player.max_jumps
-
 
 
     camera_x = player.rect.centerx - WIDTH // 2
