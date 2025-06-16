@@ -628,7 +628,6 @@ while running:
                         kill_count += 1                                             # Increment kill count
                         player.jumps_remaining = player.max_jumps                   # Regains double jumps after killing enemy
                     else:
-                        if current_checkpoint == player_start:
                             player_lives -= 1
                             if player_lives <= 0:
                                 death_state = True
