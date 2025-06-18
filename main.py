@@ -166,7 +166,7 @@ def main_menu():
     menu_running = True
     while menu_running:
         screen.fill((0, 0, 0))
-        screen.blit(title_font.render("Space Type Shi", True, (255, 255, 255)), (WIDTH//2 - 200, HEIGHT//3))
+        screen.blit(title_font.render("Space Punk", True, (255, 255, 255)), (WIDTH//2 - 150, HEIGHT//3))
         screen.blit(instruction_font.render("Press Enter To Start", True, (255, 255, 255)), (WIDTH//2 - 140, HEIGHT - 80))
         screen.blit(instruction_font.render("Press ESC To Quit", True, (255, 255, 255)), (WIDTH//2 - 130, HEIGHT - 40))
         for event in pygame.event.get():
